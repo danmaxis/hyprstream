@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Move Window to Workspace settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="number"], input[type="color"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .row label { flex: 1; margin-bottom: 0; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #bb9af7; font-size: 12px; color: #a9b1d6; }
+  </style>
+</head>
+<body>
+  <label>
+    Destination workspace
+    <input type="number" id="index" min="1" max="10" value="1" />
+  </label>
+  <div class="row">
+    <label>
+      Arrow accent color
+      <input type="color" id="color" value="#bb9af7" />
+    </label>
+  </div>
+  <label style="display: flex; align-items: center; gap: 8px;">
+    <input type="checkbox" id="followFocus" />
+    Follow focus (also switch to that workspace after moving)
+  </label>
+
+  <div class="legend">
+    By default, the move is silent — the window jumps to the destination but you stay on your current workspace. Enable 'follow focus' to also switch to the destination after the move (equivalent to your Super+Alt+N keybinds without the silent suffix). The icon shows the destination number plus a small arrow badge so it's clear which key sends where.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const settings = actionInfo.payload?.settings ?? {};
+      document.getElementById("index").value = settings.index ?? 1;
+      document.getElementById("color").value = settings.color ?? "#bb9af7";
+      document.getElementById("followFocus").checked = settings.followFocus === true;
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      const settings = {
+        index: Number(document.getElementById("index").value) || 1,
+        color: document.getElementById("color").value,
+        followFocus: document.getElementById("followFocus").checked,
+      };
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload: settings }));
+    }
+    document.getElementById("index").addEventListener("change", send);
+    document.getElementById("color").addEventListener("change", send);
+    document.getElementById("followFocus").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

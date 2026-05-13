@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Battery settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input { width: 100%; padding: 6px 8px; box-sizing: border-box; background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7dcfff; font-size: 12px; color: #a9b1d6; }
+  </style>
+</head>
+<body>
+  <label>Battery name (leave empty to auto-detect first BATn)
+    <input id="batteryName" type="text" placeholder="BAT0"/>
+  </label>
+  <label>Warn threshold (%) <input id="warnPct" type="number" min="1" max="100" value="20"/></label>
+  <div class="legend">
+    Reads <code>/sys/class/power_supply/&lt;name&gt;/capacity</code> and <code>/status</code>. With the name left blank, the plugin picks the first directory matching <code>BATn</code> (covers ~99% of laptops). A charging-bolt glyph appears in the corner whenever <code>status</code> is <em>Charging</em> or <em>Full</em>. Below the warn threshold the percent number turns red. Refreshes every 30s.
+  </div>
+  <script>
+    let websocket = null, uuid = null;
+    function connect(inPort, inUUID, inRegisterEvent, _, inActionInfo) {
+      uuid = inUUID;
+      const s = (JSON.parse(inActionInfo).payload?.settings) ?? {};
+      document.getElementById("batteryName").value = s.batteryName ?? "";
+      document.getElementById("warnPct").value = s.warnPct ?? 20;
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      const name = document.getElementById("batteryName").value.trim();
+      const payload = { warnPct: Number(document.getElementById("warnPct").value) || 20 };
+      if (name) payload.batteryName = name;
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload }));
+    }
+    for (const id of ["batteryName","warnPct"]) document.getElementById(id).addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connect;
+  </script>
+</body>
+</html>

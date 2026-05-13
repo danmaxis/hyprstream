@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Recording Toggle settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; }
+  </style>
+</head>
+<body>
+  <label>
+    Recording mode
+    <select id="mode">
+      <option value="region">Region — drag a selection (slurp), no audio</option>
+      <option value="full">Full screen — focused output, no audio</option>
+      <option value="full-audio">Full + audio — focused output with default audio source</option>
+    </select>
+  </label>
+
+  <div class="legend">
+    Tap once to start, tap again to stop. While recording, the icon shows a pulsing red dot — that's the visual nudge so you don't forget you're rolling. PID is tracked in <code>$XDG_RUNTIME_DIR/hyprstream/record.pid</code>, so the indicator survives OpenDeck restarts and external kills of <code>wf-recorder</code>. Output: <code>~/Videos/screencast-&lt;timestamp&gt;.mp4</code>.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const settings = actionInfo.payload?.settings ?? {};
+      document.getElementById("mode").value = settings.mode ?? "region";
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: { mode: document.getElementById("mode").value },
+      }));
+    }
+    document.getElementById("mode").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

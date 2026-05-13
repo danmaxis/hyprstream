@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e"/>
+  <g transform="translate(72,62)" stroke="#e93545" stroke-width="9" stroke-linecap="round">
+    <line x1="-22" y1="-22" x2="22" y2="22"/>
+    <line x1="-22" y1="22" x2="22" y2="-22"/>
+  </g>
+  <text x="72" y="128" font-family="sans-serif" font-size="20" font-weight="700"
+        fill="#e93545" text-anchor="middle">CLOSE</text>
+</svg>

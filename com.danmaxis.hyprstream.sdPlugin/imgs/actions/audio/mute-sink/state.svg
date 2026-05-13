@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e"/>
+  <g transform="translate(72,62)" fill="#3ec06b">
+    <path d="M-25,-12 L-10,-12 L8,-25 L8,25 L-10,12 L-25,12 Z"/>
+    <path d="M16,-15 a18,18 0 0 1 0,30" fill="none" stroke="#3ec06b" stroke-width="4"/>
+  </g>
+  <text x="72" y="128" font-family="sans-serif" font-size="22" font-weight="700"
+        fill="#3ec06b" text-anchor="middle">VOL</text>
+</svg>

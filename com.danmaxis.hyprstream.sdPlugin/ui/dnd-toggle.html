@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Do Not Disturb info</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; }
+    .legend strong { color: #c0caf5; }
+    .deps { margin-top: 10px; font-size: 11px; color: #565f89; }
+    code { background: #2a2e3a; padding: 1px 5px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="legend">
+    <strong>Tap to toggle Do-Not-Disturb on your notification daemon.</strong>
+    <br/><br/>
+    The plugin auto-detects whether you have <code>mako</code> or <code>dunst</code> running and uses whichever is available. With <strong>mako</strong>, the plugin toggles the <code>do-not-disturb</code> mode (<code>makoctl mode -t do-not-disturb</code>). With <strong>dunst</strong>, it toggles the paused state (<code>dunstctl set-paused toggle</code>).
+    <br/><br/>
+    <strong>Visual feedback:</strong> green bell with the label <strong style="color:#3ec06b">ALERTS</strong> when notifications are flowing; red bell with a slash and <strong style="color:#e93545">DND ON</strong> when paused. The state polls at 1 Hz so toggles from your shell, scripts, or other tools are reflected within a second.
+    <br/><br/>
+    Use this before going live, in meetings, or during deep-focus sessions where popup notifications would be disruptive.
+    <div class="deps"><strong>Requires:</strong> either <code>makoctl</code> (Arch: <code>sudo pacman -S mako</code>) or <code>dunstctl</code> (Arch: <code>sudo pacman -S dunst</code>) on PATH. If neither is present, pressing the key shows an alert.</div>
+  </div>
+
+  <script>
+    let websocket = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent) {
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

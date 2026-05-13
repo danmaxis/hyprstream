@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Presentation Mode settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type=number] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .check { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; }
+    code { background: #1a1b26; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <label>
+    Cursor size when active (px)
+    <input id="presentCursorSize" type="number" min="8" max="128" step="1" value="48"/>
+  </label>
+  <label>
+    Cursor zoom factor when active
+    <input id="presentCursorZoom" type="number" min="1.0" max="4.0" step="0.1" value="1.6"/>
+  </label>
+
+  <div class="check">
+    <input id="enableDim" type="checkbox" checked/>
+    <label for="enableDim" style="margin: 0;">Dim inactive windows</label>
+  </div>
+  <label>
+    Dim strength (0..1)
+    <input id="presentDimStrength" type="number" min="0" max="1" step="0.05" value="0.5"/>
+  </label>
+
+  <div class="check">
+    <input id="disableAnimations" type="checkbox"/>
+    <label for="disableAnimations" style="margin: 0;">Disable animations (cleaner recordings)</label>
+  </div>
+
+  <div class="legend">
+    First tap snapshots <code>cursor_size</code>, <code>cursor:zoom_factor</code>, <code>dim_inactive</code>, <code>dim_strength</code>, and <code>animations:enabled</code>, then applies your presentation values. Second tap restores the exact originals. Icon shows ON AIR while active. <strong>Requires Hyprland 0.55+.</strong>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const settings = JSON.parse(inActionInfo).payload?.settings ?? {};
+      document.getElementById("presentCursorSize").value = settings.presentCursorSize ?? 48;
+      document.getElementById("presentCursorZoom").value = settings.presentCursorZoom ?? 1.6;
+      document.getElementById("presentDimStrength").value = settings.presentDimStrength ?? 0.5;
+      document.getElementById("enableDim").checked = settings.enableDim !== false;
+      document.getElementById("disableAnimations").checked = settings.disableAnimations === true;
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          presentCursorSize: parseInt(document.getElementById("presentCursorSize").value, 10) || 48,
+          presentCursorZoom: parseFloat(document.getElementById("presentCursorZoom").value) || 1.6,
+          presentDimStrength: parseFloat(document.getElementById("presentDimStrength").value) || 0.5,
+          enableDim: document.getElementById("enableDim").checked,
+          disableAnimations: document.getElementById("disableAnimations").checked,
+        },
+      }));
+    }
+    ["presentCursorSize", "presentCursorZoom", "presentDimStrength", "enableDim", "disableAnimations"].forEach(
+      (id) => document.getElementById(id).addEventListener("change", send),
+    );
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

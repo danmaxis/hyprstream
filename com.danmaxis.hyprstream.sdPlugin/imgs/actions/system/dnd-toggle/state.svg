@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e"/>
+  <g transform="translate(72,62)" fill="#3ec06b">
+    <path d="M0,-32 C-15,-32 -22,-22 -22,-6 L-22,8 L-28,16 L28,16 L22,8 L22,-6 C22,-22 15,-32 0,-32 Z"/>
+    <circle cx="0" cy="22" r="6"/>
+  </g>
+  <text x="72" y="128" font-family="sans-serif" font-size="20" font-weight="700"
+        fill="#3ec06b" text-anchor="middle">ALERTS</text>
+</svg>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Config Tweak settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input[type=text] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #a6e3a1; font-size: 12px; color: #a9b1d6; }
+    .row { display: none; }
+    .row.show { display: block; }
+    code { background: #1a1b26; padding: 1px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <label>
+    Preset
+    <select id="preset">
+      <option value="gaps">Gaps in (0 ↔ 12)</option>
+      <option value="border">Border size (1 ↔ 4)</option>
+      <option value="rounding">Rounding (0 ↔ 12)</option>
+      <option value="blur">Blur enabled (off ↔ on)</option>
+      <option value="glow">Glow enabled (off ↔ on) — 0.55 only</option>
+      <option value="animations">Animations enabled (off ↔ on)</option>
+      <option value="cursor-size">Cursor size (24 ↔ 48)</option>
+      <option value="cursor-zoom">Cursor zoom (1.0 ↔ 1.6) — 0.55 only</option>
+      <option value="dim-inactive">Dim inactive (off ↔ on)</option>
+      <option value="custom">Custom keyword…</option>
+    </select>
+  </label>
+
+  <div class="row" id="customRow">
+    <label>
+      Keyword (e.g. <code>general:gaps_in</code> or <code>decoration:rounding</code>)
+      <input id="keyword" type="text" placeholder="section:key"/>
+    </label>
+    <label>
+      Values to cycle through (comma-separated)
+      <input id="values" type="text" placeholder="0, 8, 16"/>
+    </label>
+    <label>
+      Label shown on the icon
+      <input id="label" type="text" placeholder="GAPS"/>
+    </label>
+  </div>
+
+  <div class="legend">
+    Each press reads the current value from Hyprland via <code>/eval return hl.config.get(...)</code> then writes the next value in the cycle via <code>/keyword</code>. The icon always shows the live state. <strong>Requires Hyprland 0.55+.</strong>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    const customRow = document.getElementById("customRow");
+    function syncVisibility() {
+      customRow.classList.toggle("show", document.getElementById("preset").value === "custom");
+    }
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const settings = actionInfo.payload?.settings ?? {};
+      document.getElementById("preset").value = settings.preset ?? "gaps";
+      document.getElementById("keyword").value = settings.keyword ?? "";
+      document.getElementById("values").value = settings.values ?? "";
+      document.getElementById("label").value = settings.label ?? "";
+      syncVisibility();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          preset: document.getElementById("preset").value,
+          keyword: document.getElementById("keyword").value,
+          values: document.getElementById("values").value,
+          label: document.getElementById("label").value,
+        },
+      }));
+      syncVisibility();
+    }
+    document.getElementById("preset").addEventListener("change", send);
+    document.getElementById("keyword").addEventListener("change", send);
+    document.getElementById("values").addEventListener("change", send);
+    document.getElementById("label").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

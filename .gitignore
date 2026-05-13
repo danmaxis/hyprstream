@@ -1,0 +1,8 @@
+node_modules/
+dist/
+com.hyprstream.deck.sdPlugin/bin/
+*.log
+.DS_Store
+*.streamDeckPlugin
+.cache/
+coverage/

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Close Window settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input[type=number] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; margin-bottom: 12px; }
+    .warning { background: #2a201a; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #ffaa55; font-size: 12px; color: #f0d090; margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row label { flex: 1; margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <label>
+    Close mode
+    <select id="mode">
+      <option value="active">Active window — close just the focused one (Alt+F4 equivalent)</option>
+      <option value="workspace">Whole workspace — close every window on the current workspace</option>
+    </select>
+  </label>
+
+  <label>
+    Confirmation
+    <select id="confirmMode">
+      <option value="">Auto (tap-twice for Workspace, instant for Active)</option>
+      <option value="none">Tap to fire immediately</option>
+      <option value="tap">Tap twice to confirm</option>
+    </select>
+  </label>
+
+  <label id="confirmRow">
+    Confirm window (seconds)
+    <input id="confirmSec" type="number" min="0.5" max="10" step="0.5" value="3"/>
+  </label>
+
+  <div class="legend">
+    <strong>Active mode</strong> calls <code>hyprctl killactive</code> — graceful close that lets the app prompt for unsaved changes (e.g. browser "really close?" dialog). Same as your <code>Super+Q</code> keybind.
+    <br/><br/>
+    <strong>Workspace mode</strong> enumerates every window on your current workspace and sends each a graceful close (<code>hyprctl dispatch closewindow address:0x…</code>). Apps still get to prompt about unsaved changes individually. Issued in a single <code>hyprctl --batch</code> for speed.
+    <br/><br/>
+    <strong>Tap-twice-to-confirm</strong>: the first tap arms the key — a red ring appears around the X and drains as the confirm window elapses. A second tap inside the window fires the close. Wait out the window (default 3s) and it disarms — nothing happens.
+  </div>
+
+  <div class="warning" id="warning" style="display: none;">
+    ⚠ <strong>Workspace mode is destructive.</strong> The default <em>Auto</em> confirmation enables a tap-twice gesture so an accidental tap can't wipe your workspace. Switch confirmation to "Tap to fire immediately" only if you really want a one-tap close-all.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const settings = actionInfo.payload?.settings ?? {};
+      document.getElementById("mode").value = settings.mode ?? "active";
+      // 'hold' is a legacy v0.3.0 value; plugin coerces it to 'tap' too.
+      const cm = settings.confirmMode === "hold" ? "tap" : (settings.confirmMode ?? "");
+      document.getElementById("confirmMode").value = cm;
+      const ms = Number(settings.confirmMs);
+      const seconds = Number.isFinite(ms) && ms > 0 ? ms / 1000 : 3;
+      document.getElementById("confirmSec").value = seconds;
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function effectiveConfirm() {
+      const c = document.getElementById("confirmMode").value;
+      if (c === "tap" || c === "none") return c;
+      return document.getElementById("mode").value === "workspace" ? "tap" : "none";
+    }
+    function updateUi() {
+      const isWs = document.getElementById("mode").value === "workspace";
+      document.getElementById("warning").style.display = isWs ? "block" : "none";
+      document.getElementById("confirmRow").style.display = effectiveConfirm() === "tap" ? "block" : "none";
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      const seconds = Number(document.getElementById("confirmSec").value) || 3;
+      const payload = {
+        mode: document.getElementById("mode").value,
+        confirmMs: Math.round(seconds * 1000),
+      };
+      const c = document.getElementById("confirmMode").value;
+      if (c === "tap" || c === "none") payload.confirmMode = c;
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload }));
+      updateUi();
+    }
+    document.getElementById("mode").addEventListener("change", send);
+    document.getElementById("confirmMode").addEventListener("change", send);
+    document.getElementById("confirmSec").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

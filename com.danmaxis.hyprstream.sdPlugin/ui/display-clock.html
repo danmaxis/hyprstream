@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Clock settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select { width: 100%; padding: 6px 8px; box-sizing: border-box; background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px; }
+    .toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer; }
+    .toggle input { transform: scale(1.15); }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7dcfff; font-size: 12px; color: #a9b1d6; }
+  </style>
+</head>
+<body>
+  <label>
+    Format
+    <select id="format">
+      <option value="24h">24-hour (14:32)</option>
+      <option value="12h">12-hour (02:32 PM)</option>
+    </select>
+  </label>
+  <label class="toggle"><input id="showSeconds" type="checkbox"/>Show seconds (icon refreshes every second)</label>
+  <label class="toggle"><input id="showDate" type="checkbox"/>Show date below the time</label>
+  <div class="legend">
+    Display-only. Reads <code>new Date()</code> at each tick. Refreshes every 1s when seconds are shown, otherwise every 30s. Pressing the key just acknowledges — no system action. Works on any Linux setup (no Hyprland required).
+  </div>
+  <script>
+    let websocket = null, uuid = null;
+    function connect(inPort, inUUID, inRegisterEvent, _, inActionInfo) {
+      uuid = inUUID;
+      const s = (JSON.parse(inActionInfo).payload?.settings) ?? {};
+      document.getElementById("format").value = s.format ?? "24h";
+      document.getElementById("showSeconds").checked = s.showSeconds === true;
+      document.getElementById("showDate").checked = s.showDate === true;
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload: {
+        format: document.getElementById("format").value,
+        showSeconds: document.getElementById("showSeconds").checked,
+        showDate: document.getElementById("showDate").checked,
+      }}));
+    }
+    for (const id of ["format","showSeconds","showDate"]) document.getElementById(id).addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connect;
+  </script>
+</body>
+</html>

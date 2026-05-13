@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e" stroke="#7dcfff66" stroke-width="2"/>
+  <text x="72" y="78" font-family="sans-serif" font-size="40" font-weight="800"
+        fill="#7dcfff" text-anchor="middle">14:32</text>
+  <text x="72" y="108" font-family="sans-serif" font-size="14" font-weight="600"
+        fill="#565f89" text-anchor="middle">CLOCK</text>
+</svg>

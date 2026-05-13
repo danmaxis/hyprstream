@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Temperature settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input { width: 100%; padding: 6px 8px; box-sizing: border-box; background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7dcfff; font-size: 12px; color: #a9b1d6; }
+  </style>
+</head>
+<body>
+  <label>Thermal zone <input id="zone" type="text" placeholder="thermal_zone0"/></label>
+  <label>Warn threshold (°C) <input id="warnC" type="number" min="1" max="120" value="75"/></label>
+  <label>Critical threshold (°C) <input id="critC" type="number" min="1" max="120" value="90"/></label>
+  <div class="legend">
+    Reads <code>/sys/class/thermal/&lt;zone&gt;/temp</code> (millidegrees) and divides by 1000. Default zone is <code>thermal_zone0</code> which is usually the CPU package on Intel/AMD laptops; check <code>ls /sys/class/thermal/</code> for the names available on your machine. Refreshes every 2s.
+  </div>
+  <script>
+    let websocket = null, uuid = null;
+    function connect(inPort, inUUID, inRegisterEvent, _, inActionInfo) {
+      uuid = inUUID;
+      const s = (JSON.parse(inActionInfo).payload?.settings) ?? {};
+      document.getElementById("zone").value = s.zone ?? "";
+      document.getElementById("warnC").value = s.warnC ?? 75;
+      document.getElementById("critC").value = s.critC ?? 90;
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      const zone = document.getElementById("zone").value.trim();
+      const payload = {
+        warnC: Number(document.getElementById("warnC").value) || 75,
+        critC: Number(document.getElementById("critC").value) || 90,
+      };
+      if (zone) payload.zone = zone;
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload }));
+    }
+    for (const id of ["zone","warnC","critC"]) document.getElementById(id).addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connect;
+  </script>
+</body>
+</html>

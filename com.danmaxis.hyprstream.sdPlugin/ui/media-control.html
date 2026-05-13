@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Media Control settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select {
+      width: 100%; padding: 6px 8px; box-sizing: border-box;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .toggle { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer; }
+    .toggle input { transform: scale(1.15); }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .legend .req { color: #ffaa55; }
+  </style>
+</head>
+<body>
+  <label>
+    Player operation
+    <select id="op">
+      <option value="play-pause">Play / Pause toggle</option>
+      <option value="next">Next track</option>
+      <option value="prev">Previous track</option>
+    </select>
+  </label>
+
+  <label class="toggle" id="showArtRow">
+    <input type="checkbox" id="showArt" />
+    Show album art on Play/Pause
+  </label>
+
+  <label class="toggle" id="allowRemoteRow" style="display: none;">
+    <input type="checkbox" id="allowRemoteFetch" />
+    Allow fetching HTTPS art (Spotify, Tidal, etc.) — off by default for privacy
+  </label>
+
+  <div class="legend">
+    Drives whichever MPRIS player is active (Spotify, mpv, browsers, VLC, etc.) via <code>playerctl</code>. <strong>Play/Pause</strong> is dynamic — its icon flips between ▶ and ❚❚ to mirror the current playback status. <strong>Next</strong> and <strong>Previous</strong> are static. Status polls at ~1Hz while the action is on screen.
+    <br/><br/>
+    <strong>Album art</strong> reads the focused player's <code>mpris:artUrl</code> and composites it under the play/pause glyph. Local <code>file://</code> art (mpv, Rhythmbox, browser players that cache locally) always loads. To pull HTTPS art from streaming services, flip the second toggle — disabled by default so the plugin doesn't make outbound network calls without consent.
+    <br/><br/>
+    <span class="req">Requires: <code>playerctl</code> (pacman -S playerctl)</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const settings = actionInfo.payload?.settings ?? {};
+      document.getElementById("op").value = settings.op ?? "play-pause";
+      document.getElementById("showArt").checked = settings.showArt !== false;
+      document.getElementById("allowRemoteFetch").checked = settings.allowRemoteFetch === true;
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function updateUi() {
+      const isPlayPause = document.getElementById("op").value === "play-pause";
+      document.getElementById("showArtRow").style.display = isPlayPause ? "flex" : "none";
+      const showArt = document.getElementById("showArt").checked;
+      document.getElementById("allowRemoteRow").style.display =
+        isPlayPause && showArt ? "flex" : "none";
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          op: document.getElementById("op").value,
+          showArt: document.getElementById("showArt").checked,
+          allowRemoteFetch: document.getElementById("allowRemoteFetch").checked,
+        },
+      }));
+      updateUi();
+    }
+    document.getElementById("op").addEventListener("change", send);
+    document.getElementById("showArt").addEventListener("change", send);
+    document.getElementById("allowRemoteFetch").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

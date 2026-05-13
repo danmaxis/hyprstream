@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e" stroke="#7dcfff66" stroke-width="2"/>
+  <text x="72" y="76" font-family="sans-serif" font-size="44" font-weight="800"
+        fill="#7dcfff" text-anchor="middle">61°</text>
+  <text x="72" y="104" font-family="sans-serif" font-size="18" font-weight="700"
+        fill="#c0caf5" text-anchor="middle">TEMP</text>
+  <rect x="17" y="120" width="110" height="6" rx="3" fill="#7dcfff33"/>
+  <rect x="17" y="120" width="67" height="6" rx="3" fill="#7dcfff"/>
+</svg>

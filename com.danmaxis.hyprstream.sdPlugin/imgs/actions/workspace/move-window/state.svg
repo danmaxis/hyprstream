@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="#16161e"/>
+  <text x="72" y="92" font-family="sans-serif" font-size="76" font-weight="700"
+        fill="#c0caf5" text-anchor="middle">N</text>
+  <g transform="translate(108,108)" fill="#bb9af7">
+    <circle cx="0" cy="0" r="16" opacity="0.95"/>
+    <path d="M-7,-1 L3,-1 L3,-6 L9,0 L3,6 L3,1 L-7,1 Z" fill="#16161e"/>
+  </g>
+  <text x="72" y="128" font-family="sans-serif" font-size="14" font-weight="600"
+        fill="#565f89" text-anchor="middle">SEND →</text>
+</svg>
