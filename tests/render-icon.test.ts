@@ -47,6 +47,41 @@ describe("workspaceIconSvg", () => {
     const busyZero = workspaceIconSvg({ index: 2, state: "busy", windowCount: 0 });
     expect(busyZero).not.toMatch(/<circle[^>]+cx="118"/);
   });
+
+  it("renders glyph + label and suppresses the count indicator when `label` is set", () => {
+    const svg = workspaceIconSvg({
+      index: 0,
+      state: "busy",
+      windowCount: 5,
+      label: { glyph: "★", text: "notes" },
+    });
+    expect(svg).toContain(">★<");
+    expect(svg).toContain(">notes<");
+    // Numeric centerpiece is not rendered when label is set.
+    expect(svg).not.toMatch(/font-size="92"/);
+    // No count badge for label-mode icons.
+    expect(svg).not.toMatch(/<circle[^>]+cx="118"/);
+  });
+
+  it("paints the active accent for label-mode when state is active", () => {
+    const svg = workspaceIconSvg({
+      index: 0,
+      state: "active",
+      activeColor: "#ff00ff",
+      label: { glyph: "★", text: "SCR" },
+    });
+    expect(svg).toContain('fill="#ff00ff"');
+    expect(svg).toContain(">SCR<");
+  });
+
+  it("escapes XML-special chars in label text", () => {
+    const svg = workspaceIconSvg({
+      index: 0,
+      state: "empty",
+      label: { glyph: "#", text: "a<b&c" },
+    });
+    expect(svg).toContain("a&lt;b&amp;c");
+  });
 });
 
 describe("renderWorkspaceIcon", () => {
@@ -244,6 +279,15 @@ describe("moveWindowIconSvg", () => {
     const svg = moveWindowIconSvg({ index: 7 });
     expect(svg).toContain(">7<");
     expect(svg).toContain("SEND");
+  });
+
+  it("renders glyph + label when `label` is set", () => {
+    const svg = moveWindowIconSvg({ index: 0, label: { glyph: "★", text: "notes" } });
+    expect(svg).toContain(">★<");
+    expect(svg).toContain(">notes<");
+    expect(svg).toContain("SEND");
+    // No big numeric glyph in label-mode.
+    expect(svg).not.toMatch(/font-size="76"/);
   });
 });
 

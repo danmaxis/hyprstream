@@ -23,11 +23,19 @@ export interface HyprStateOptions {
   degradeQuietMs?: number;
 }
 
+export interface ActiveSpecial {
+  /** Bare special name without the `special:` prefix. Empty string = anonymous. */
+  name: string;
+  /** Monitor connector name where the special is overlaid. */
+  monitor: string;
+}
+
 export class HyprState extends EventEmitter {
   readonly socket: HyprSocket;
   readonly hyprctl: Hyprctl;
   private workspaces = new Map<number, WorkspaceState>();
   private activeWsId = 1;
+  private activeSpecial_: ActiveSpecial | null = null;
   private active: HyprClient | null = null;
   private started = false;
   private readonly refreshDebounceMs: number;
@@ -82,6 +90,15 @@ export class HyprState extends EventEmitter {
     return this.activeWsId;
   }
 
+  /**
+   * Currently overlaid special workspace, or null when no special is
+   * showing on any monitor. Used by Workspace Focus to render the "active"
+   * state for `kind: "special"` and `kind: "scratchpad"` buttons.
+   */
+  get activeSpecial(): ActiveSpecial | null {
+    return this.activeSpecial_;
+  }
+
   get activeClient(): HyprClient | null {
     return this.active;
   }
@@ -103,10 +120,11 @@ export class HyprState extends EventEmitter {
   async refresh(): Promise<void> {
     if (this.degraded && Date.now() < this.quietUntil) return;
     try {
-      const [wsList, activeWs, activeWin] = await Promise.all([
+      const [wsList, activeWs, activeWin, monitors] = await Promise.all([
         this.hyprctl.workspaces(),
         this.hyprctl.activeWorkspace(),
         this.hyprctl.activeWindow(),
+        this.hyprctl.monitors(),
       ]);
       const next = new Map<number, WorkspaceState>();
       for (const ws of wsList) {
@@ -119,6 +137,19 @@ export class HyprState extends EventEmitter {
       this.workspaces = next;
       this.activeWsId = activeWs.id;
       this.active = activeWin;
+      // Detect any monitor showing a special workspace overlay. Prefer the
+      // focused monitor when more than one has a special active.
+      let special: ActiveSpecial | null = null;
+      for (const m of monitors) {
+        const sw = m.specialWorkspace;
+        if (sw && sw.name) {
+          const bare = sw.name.startsWith("special:") ? sw.name.slice("special:".length) : sw.name;
+          if (special === null || m.focused) {
+            special = { name: bare, monitor: m.name };
+          }
+        }
+      }
+      this.activeSpecial_ = special;
       this.consecutiveErrors = 0;
       this.lastError = null;
       if (this.degraded) {

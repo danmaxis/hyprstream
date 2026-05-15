@@ -1,6 +1,6 @@
 {
   "name": "hyprstream",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "OpenDeck action plugin that turns a Stream Deck into a Hyprland control surface — workspaces, window state, audio, capture, MPRIS media with album art, and six system displays.",
   "license": "MIT",
   "private": true,

@@ -6,27 +6,71 @@
   <style>
     body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
     label { display: block; margin-bottom: 12px; font-size: 13px; }
-    input[type="number"], input[type="color"], select {
+    input[type="number"], input[type="text"], input[type="color"], select {
       width: 100%; padding: 6px 8px; box-sizing: border-box;
       background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
       color: inherit; font-size: 13px;
     }
-    p { color: #a9b1d6; font-size: 12px; margin: 8px 0 16px 0; }
-    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; }
+    .hint { font-size: 11px; color: #9aa5ce; margin: 4px 0 0 0; }
+    .hint.warn { color: #e0af68; }
+    .hidden { display: none; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; margin-top: 8px; }
     .legend strong { color: #7aa2f7; }
   </style>
 </head>
 <body>
   <label>
+    Destination type
+    <select id="kind">
+      <option value="numeric">Numeric — workspace 1..10</option>
+      <option value="named">Named — arbitrary workspace name</option>
+      <option value="special">Special — overlay (toggles on/off)</option>
+      <option value="scratchpad">Scratchpad — Hyprland's default special</option>
+      <option value="relative">Relative — r±1, m±1, e±1, previous</option>
+    </select>
+  </label>
+
+  <label id="row-numeric">
     Workspace number
     <input type="number" id="index" min="1" max="10" value="1" />
   </label>
+
+  <label id="row-named" class="hidden">
+    Workspace name
+    <input type="text" id="namedName" placeholder="e.g. music" />
+    <p class="hint" id="hint-named">Type the exact workspace name as Hyprland sees it.</p>
+  </label>
+
+  <label id="row-special" class="hidden">
+    Special workspace name
+    <input type="text" id="specialName" placeholder="e.g. notes (leave empty for anonymous)" />
+    <p class="hint" id="hint-special">The <code>special:</code> prefix is added automatically — type just the name. Tapping toggles the overlay on and off.</p>
+  </label>
+
+  <label id="row-scratchpad" class="hidden">
+    <p class="hint">Toggles the default <code>special:scratchpad</code> overlay. Tap to show, tap again to hide.</p>
+  </label>
+
+  <label id="row-relative" class="hidden">
+    Selector
+    <select id="relativeToken">
+      <option value="e+1">e+1 — next non-empty workspace</option>
+      <option value="e-1">e-1 — previous non-empty workspace</option>
+      <option value="r+1">r+1 — next workspace</option>
+      <option value="r-1">r-1 — previous workspace</option>
+      <option value="m+1">m+1 — next on this monitor</option>
+      <option value="m-1">m-1 — previous on this monitor</option>
+      <option value="previous">previous — last focused workspace</option>
+    </select>
+  </label>
+
   <label>
     Active accent color
     <input type="color" id="color" value="#7aa2f7" />
   </label>
-  <label>
-    Window-count indicator (when busy)
+
+  <label id="row-countDisplay">
+    Window-count indicator (numeric only)
     <select id="countDisplay">
       <option value="badge">Badge — circled number in the corner</option>
       <option value="dots">Dots — small dots at the bottom (1 per window, 5+ shows '+')</option>
@@ -36,33 +80,104 @@
   </label>
 
   <div class="legend">
-    <strong>How the icon reads:</strong> when this workspace is the active one, the key fills with the accent color and shows the workspace number in white. When it has open windows but isn't focused, the key is dim with a window-count indicator (badge, dots, bar, or none — your choice above). When it's empty, the key is muted with no indicator.
+    <strong>Icon behavior:</strong>
+    Numeric — filled with the accent color when this workspace is active, dim with a count indicator when busy, muted when empty.
+    Special / Scratchpad — accent color when the overlay is currently shown on any monitor.
+    Named / Relative — neutral styling (no live state, since these resolve at dispatch time).
   </div>
 
   <script>
     let websocket = null, uuid = null, actionInfo = null;
+    const ROWS = ["numeric", "named", "special", "scratchpad", "relative"];
+
+    function $(id) { return document.getElementById(id); }
+    function show(kind) {
+      for (const k of ROWS) $("row-" + k).classList.toggle("hidden", k !== kind);
+      $("row-countDisplay").classList.toggle("hidden", kind !== "numeric");
+    }
+
     function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
       uuid = inUUID;
       actionInfo = JSON.parse(inActionInfo);
       const settings = actionInfo.payload?.settings ?? {};
-      document.getElementById("index").value = settings.index ?? 1;
-      document.getElementById("color").value = settings.color ?? "#7aa2f7";
-      document.getElementById("countDisplay").value = settings.countDisplay ?? "badge";
+      hydrate(settings);
       websocket = new WebSocket("ws://127.0.0.1:" + inPort);
       websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
     }
+
+    function hydrate(s) {
+      const sel = s.selector ?? (s.index !== undefined ? { kind: "numeric", index: Number(s.index) || 1 } : { kind: "numeric", index: 1 });
+      $("kind").value = sel.kind;
+      $("index").value = sel.kind === "numeric" ? (sel.index ?? 1) : 1;
+      $("namedName").value = sel.kind === "named" ? (sel.name ?? "") : "";
+      $("specialName").value = sel.kind === "special" ? (sel.name ?? "") : "";
+      $("relativeToken").value = sel.kind === "relative" ? (sel.token ?? "e+1") : "e+1";
+      $("color").value = s.color ?? "#7aa2f7";
+      $("countDisplay").value = s.countDisplay ?? "badge";
+      show(sel.kind);
+      validate();
+    }
+
+    function buildSelector() {
+      const kind = $("kind").value;
+      switch (kind) {
+        case "numeric":
+          return { kind: "numeric", index: Math.max(1, Math.min(10, Number($("index").value) || 1)) };
+        case "named":
+          return { kind: "named", name: ($("namedName").value || "").trim() };
+        case "special": {
+          let name = ($("specialName").value || "").trim();
+          if (name.startsWith("special:")) name = name.slice("special:".length);
+          return { kind: "special", name };
+        }
+        case "scratchpad":
+          return { kind: "scratchpad" };
+        case "relative":
+          return { kind: "relative", token: $("relativeToken").value || "e+1" };
+      }
+    }
+
+    function validate() {
+      const kind = $("kind").value;
+      const hintNamed = $("hint-named");
+      const hintSpecial = $("hint-special");
+      hintNamed.classList.remove("warn");
+      hintSpecial.classList.remove("warn");
+      if (kind === "named" && !$("namedName").value.trim()) {
+        hintNamed.textContent = "Name is required — Hyprland needs a target.";
+        hintNamed.classList.add("warn");
+      } else {
+        hintNamed.textContent = "Type the exact workspace name as Hyprland sees it.";
+      }
+      if (kind === "special" && $("specialName").value.trim().startsWith("special:")) {
+        hintSpecial.textContent = "Heads up: the 'special:' prefix is added automatically — drop it.";
+        hintSpecial.classList.add("warn");
+      } else {
+        hintSpecial.textContent = "The 'special:' prefix is added automatically — type just the name. Tapping toggles the overlay on and off.";
+      }
+    }
+
     function send() {
       if (!websocket || websocket.readyState !== 1) return;
-      const settings = {
-        index: Number(document.getElementById("index").value) || 1,
-        color: document.getElementById("color").value,
-        countDisplay: document.getElementById("countDisplay").value,
+      const payload = {
+        selector: buildSelector(),
+        color: $("color").value,
+        countDisplay: $("countDisplay").value,
       };
-      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload: settings }));
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload }));
     }
-    document.getElementById("index").addEventListener("change", send);
-    document.getElementById("color").addEventListener("change", send);
-    document.getElementById("countDisplay").addEventListener("change", send);
+
+    function onChange() {
+      show($("kind").value);
+      validate();
+      send();
+    }
+
+    for (const id of ["kind", "index", "namedName", "specialName", "relativeToken", "color", "countDisplay"]) {
+      document.getElementById(id).addEventListener("input", onChange);
+      document.getElementById(id).addEventListener("change", onChange);
+    }
+
     window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
   </script>
 </body>

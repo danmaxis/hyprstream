@@ -186,6 +186,68 @@ describe("Hyprctl wire-format (Hyprland 0.55 Lua API)", () => {
     ]);
   });
 
+  it("focusWorkspace(numeric selector) → focus({ workspace = N })", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.focusWorkspace({ kind: "numeric", index: 5 });
+    expect(payloads).toEqual(["/dispatch hl.dsp.focus({ workspace = 5 })"]);
+  });
+
+  it("focusWorkspace(named selector) → focus({ workspace = \"NAME\" })", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.focusWorkspace({ kind: "named", name: "music" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.focus({ workspace = "music" })',
+    ]);
+  });
+
+  it("focusWorkspace(special selector) → toggle_special(\"NAME\")", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.focusWorkspace({ kind: "special", name: "notes" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.workspace.toggle_special("notes")',
+    ]);
+  });
+
+  it("focusWorkspace(scratchpad) → toggle_special(\"scratchpad\")", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.focusWorkspace({ kind: "scratchpad" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.workspace.toggle_special("scratchpad")',
+    ]);
+  });
+
+  it("focusWorkspace(relative e+1) → focus({ workspace = \"e+1\" })", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.focusWorkspace({ kind: "relative", token: "e+1" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.focus({ workspace = "e+1" })',
+    ]);
+  });
+
+  it("moveActiveToWorkspace(special) → window.move with quoted special:NAME", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.moveActiveToWorkspace({ kind: "special", name: "notes" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.window.move({ workspace = "special:notes", follow = false })',
+    ]);
+  });
+
+  it("moveActiveToWorkspace(scratchpad, follow) → window.move with follow=true", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.moveActiveToWorkspace({ kind: "scratchpad" }, false);
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.window.move({ workspace = "special:scratchpad", follow = true })',
+    ]);
+  });
+
+  it("moveActiveToWorkspace(relative) → window.move with quoted token", async () => {
+    const { payloads, hyprctl } = makeHyprctl();
+    await hyprctl.moveActiveToWorkspace({ kind: "relative", token: "previous" });
+    expect(payloads).toEqual([
+      '/dispatch hl.dsp.window.move({ workspace = "previous", follow = false })',
+    ]);
+  });
+
   it("exec escapes Lua special chars in the command", async () => {
     const { payloads, hyprctl } = makeHyprctl();
     await hyprctl.exec('say "hi" \\o/');

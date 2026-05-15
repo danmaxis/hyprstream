@@ -3,7 +3,7 @@
   "UUID": "com.danmaxis.hyprstream",
   "Name": "Hyprstream",
   "Author": "danmaxis",
-  "Version": "0.4.12.0",
+  "Version": "0.4.13.0",
   "Description": "Hyprland control surface for Stream Deck-class hardware: live workspaces, window state with on/off feedback, audio/mic with PipeWire state polling, capture (screenshot + screen recording), MPRIS media keys with album art, DnD toggle, monitor swap, and six system-info displays (clock, CPU, RAM, battery, temperature, uptime).",
   "Icon": "imgs/plugin/icon",
   "URL": "https://github.com/danmaxis/hyprstream",
@@ -22,7 +22,7 @@
     {
       "UUID": "com.danmaxis.hyprstream.workspace.focus",
       "Name": "Workspace Focus",
-      "Tooltip": "Tap to focus a Hyprland workspace. The icon updates live as you switch workspaces from anywhere: filled with the accent color when this is the active workspace, dim with a small indicator showing the window count when it has open windows but isn't focused, and faded out when it's empty. Choose between badge / dots / bar / none for the busy-workspace indicator in the property inspector.",
+      "Tooltip": "Tap to focus a Hyprland workspace. Pick the destination type in the Property Inspector: a numeric workspace (1..10), a named one, a special workspace (toggles the overlay on/off — perfect for scratchpads), the default scratchpad, or a relative selector (e+1, r-1, previous, etc.). The icon reflects live state for numeric and special destinations: filled with the accent color when active/visible, dim with a count indicator when busy, muted when empty.",
       "Icon": "imgs/actions/workspace/icon",
       "PropertyInspectorPath": "ui/workspace-focus.html",
       "Controllers": ["Keypad"],
@@ -38,7 +38,7 @@
     {
       "UUID": "com.danmaxis.hyprstream.workspace.move-window",
       "Name": "Move Window to Workspace",
-      "Tooltip": "Tap to send the focused window to the configured workspace. The move is silent by default — the window goes to the destination but you stay on your current workspace. Optionally enable 'follow focus' in the property inspector to also switch to that workspace. Equivalent to your Super+Alt+1-9 keybinds, but ergonomic on the deck.",
+      "Tooltip": "Tap to send the focused window to the configured destination. Pick the destination type in the Property Inspector: numeric (1..10), named, special workspace (overlay), the default scratchpad, or a relative selector (e+1, r-1, previous, etc.). The move is silent by default — the window goes to the destination but you stay on your current workspace; enable 'follow focus' to switch along with the window.",
       "Icon": "imgs/actions/workspace/move-window/icon",
       "PropertyInspectorPath": "ui/move-window.html",
       "Controllers": ["Keypad"],

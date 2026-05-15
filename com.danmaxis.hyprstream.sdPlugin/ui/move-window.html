@@ -6,60 +6,168 @@
   <style>
     body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
     label { display: block; margin-bottom: 12px; font-size: 13px; }
-    input[type="number"], input[type="color"] {
+    input[type="number"], input[type="text"], input[type="color"], select {
       width: 100%; padding: 6px 8px; box-sizing: border-box;
       background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
       color: inherit; font-size: 13px;
     }
-    .row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
-    .row label { flex: 1; margin-bottom: 0; }
-    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #bb9af7; font-size: 12px; color: #a9b1d6; }
+    .hint { font-size: 11px; color: #9aa5ce; margin: 4px 0 0 0; }
+    .hint.warn { color: #e0af68; }
+    .hidden { display: none; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #bb9af7; font-size: 12px; color: #a9b1d6; margin-top: 8px; }
   </style>
 </head>
 <body>
   <label>
+    Destination type
+    <select id="kind">
+      <option value="numeric">Numeric — workspace 1..10</option>
+      <option value="named">Named — arbitrary workspace name</option>
+      <option value="special">Special — overlay workspace</option>
+      <option value="scratchpad">Scratchpad — Hyprland's default special</option>
+      <option value="relative">Relative — r±1, m±1, e±1, previous</option>
+    </select>
+  </label>
+
+  <label id="row-numeric">
     Destination workspace
     <input type="number" id="index" min="1" max="10" value="1" />
   </label>
-  <div class="row">
-    <label>
-      Arrow accent color
-      <input type="color" id="color" value="#bb9af7" />
-    </label>
-  </div>
+
+  <label id="row-named" class="hidden">
+    Workspace name
+    <input type="text" id="namedName" placeholder="e.g. music" />
+    <p class="hint" id="hint-named">Type the exact workspace name as Hyprland sees it.</p>
+  </label>
+
+  <label id="row-special" class="hidden">
+    Special workspace name
+    <input type="text" id="specialName" placeholder="e.g. notes (leave empty for anonymous)" />
+    <p class="hint" id="hint-special">The <code>special:</code> prefix is added automatically — type just the name.</p>
+  </label>
+
+  <label id="row-scratchpad" class="hidden">
+    <p class="hint">Sends the active window to <code>special:scratchpad</code>.</p>
+  </label>
+
+  <label id="row-relative" class="hidden">
+    Selector
+    <select id="relativeToken">
+      <option value="e+1">e+1 — next non-empty workspace</option>
+      <option value="e-1">e-1 — previous non-empty workspace</option>
+      <option value="r+1">r+1 — next workspace</option>
+      <option value="r-1">r-1 — previous workspace</option>
+      <option value="m+1">m+1 — next on this monitor</option>
+      <option value="m-1">m-1 — previous on this monitor</option>
+      <option value="previous">previous — last focused workspace</option>
+    </select>
+  </label>
+
+  <label>
+    Arrow accent color
+    <input type="color" id="color" value="#bb9af7" />
+  </label>
+
   <label style="display: flex; align-items: center; gap: 8px;">
     <input type="checkbox" id="followFocus" />
     Follow focus (also switch to that workspace after moving)
   </label>
 
   <div class="legend">
-    By default, the move is silent — the window jumps to the destination but you stay on your current workspace. Enable 'follow focus' to also switch to the destination after the move (equivalent to your Super+Alt+N keybinds without the silent suffix). The icon shows the destination number plus a small arrow badge so it's clear which key sends where.
+    By default, the move is silent — the window jumps to the destination but you stay on your current workspace. Enable 'follow focus' to also switch to the destination after the move. Special / Scratchpad destinations move the window into the overlay; toggle it visible separately with a Workspace Focus key.
   </div>
 
   <script>
     let websocket = null, uuid = null, actionInfo = null;
+    const ROWS = ["numeric", "named", "special", "scratchpad", "relative"];
+
+    function $(id) { return document.getElementById(id); }
+    function show(kind) {
+      for (const k of ROWS) $("row-" + k).classList.toggle("hidden", k !== kind);
+    }
+
     function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
       uuid = inUUID;
       actionInfo = JSON.parse(inActionInfo);
       const settings = actionInfo.payload?.settings ?? {};
-      document.getElementById("index").value = settings.index ?? 1;
-      document.getElementById("color").value = settings.color ?? "#bb9af7";
-      document.getElementById("followFocus").checked = settings.followFocus === true;
+      hydrate(settings);
       websocket = new WebSocket("ws://127.0.0.1:" + inPort);
       websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
     }
+
+    function hydrate(s) {
+      const sel = s.selector ?? (s.index !== undefined ? { kind: "numeric", index: Number(s.index) || 1 } : { kind: "numeric", index: 1 });
+      $("kind").value = sel.kind;
+      $("index").value = sel.kind === "numeric" ? (sel.index ?? 1) : 1;
+      $("namedName").value = sel.kind === "named" ? (sel.name ?? "") : "";
+      $("specialName").value = sel.kind === "special" ? (sel.name ?? "") : "";
+      $("relativeToken").value = sel.kind === "relative" ? (sel.token ?? "e+1") : "e+1";
+      $("color").value = s.color ?? "#bb9af7";
+      $("followFocus").checked = s.followFocus === true;
+      show(sel.kind);
+      validate();
+    }
+
+    function buildSelector() {
+      const kind = $("kind").value;
+      switch (kind) {
+        case "numeric":
+          return { kind: "numeric", index: Math.max(1, Math.min(10, Number($("index").value) || 1)) };
+        case "named":
+          return { kind: "named", name: ($("namedName").value || "").trim() };
+        case "special": {
+          let name = ($("specialName").value || "").trim();
+          if (name.startsWith("special:")) name = name.slice("special:".length);
+          return { kind: "special", name };
+        }
+        case "scratchpad":
+          return { kind: "scratchpad" };
+        case "relative":
+          return { kind: "relative", token: $("relativeToken").value || "e+1" };
+      }
+    }
+
+    function validate() {
+      const kind = $("kind").value;
+      const hintNamed = $("hint-named");
+      const hintSpecial = $("hint-special");
+      hintNamed.classList.remove("warn");
+      hintSpecial.classList.remove("warn");
+      if (kind === "named" && !$("namedName").value.trim()) {
+        hintNamed.textContent = "Name is required — Hyprland needs a target.";
+        hintNamed.classList.add("warn");
+      } else {
+        hintNamed.textContent = "Type the exact workspace name as Hyprland sees it.";
+      }
+      if (kind === "special" && $("specialName").value.trim().startsWith("special:")) {
+        hintSpecial.textContent = "Heads up: the 'special:' prefix is added automatically — drop it.";
+        hintSpecial.classList.add("warn");
+      } else {
+        hintSpecial.textContent = "The 'special:' prefix is added automatically — type just the name.";
+      }
+    }
+
     function send() {
       if (!websocket || websocket.readyState !== 1) return;
-      const settings = {
-        index: Number(document.getElementById("index").value) || 1,
-        color: document.getElementById("color").value,
-        followFocus: document.getElementById("followFocus").checked,
+      const payload = {
+        selector: buildSelector(),
+        color: $("color").value,
+        followFocus: $("followFocus").checked,
       };
-      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload: settings }));
+      websocket.send(JSON.stringify({ event: "setSettings", context: uuid, payload }));
     }
-    document.getElementById("index").addEventListener("change", send);
-    document.getElementById("color").addEventListener("change", send);
-    document.getElementById("followFocus").addEventListener("change", send);
+
+    function onChange() {
+      show($("kind").value);
+      validate();
+      send();
+    }
+
+    for (const id of ["kind", "index", "namedName", "specialName", "relativeToken", "color", "followFocus"]) {
+      document.getElementById(id).addEventListener("input", onChange);
+      document.getElementById(id).addEventListener("change", onChange);
+    }
+
     window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
   </script>
 </body>

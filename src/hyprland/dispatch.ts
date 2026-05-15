@@ -6,6 +6,12 @@ import {
   type HyprMonitor,
   type HyprWorkspace,
 } from "./types.js";
+import {
+  clampNumericIndex,
+  toFocusWorkspaceArg,
+  toToggleSpecialName,
+  type WorkspaceSelector,
+} from "./workspace-selector.js";
 
 export interface LastHyprctlError {
   payload: string;
@@ -185,14 +191,34 @@ export class Hyprctl {
 
   // ---- High-level dispatchers (Hyprland 0.55 Lua API) ----
 
-  focusWorkspace(index: number): Promise<string> {
-    return this.send(`/dispatch hl.dsp.focus({ workspace = ${index} })`);
+  /**
+   * Focus a workspace. Accepts a numeric ID (legacy) or a full
+   * `WorkspaceSelector`. Special / scratchpad selectors are routed through
+   * `toggle_special` so a second tap hides the overlay — that matches the
+   * UX users expect from scratchpad keybinds.
+   */
+  focusWorkspace(target: number | WorkspaceSelector): Promise<string> {
+    const sel = normalizeWorkspaceArg(target);
+    const togName = toToggleSpecialName(sel);
+    if (togName !== null) {
+      return this.toggleScratchpad(togName);
+    }
+    return this.send(`/dispatch hl.dsp.focus({ workspace = ${toFocusWorkspaceArg(sel)} })`);
   }
 
-  /** Move active window to workspace. `silent=true` means don't follow focus. */
-  moveActiveToWorkspace(index: number, silent = true): Promise<string> {
+  /**
+   * Move active window to workspace. `silent=true` means don't follow focus.
+   * String-selector support for `hl.dsp.window.move` (special / named /
+   * relative tokens) is not yet documented in LUA_SCRIPTS.md for 0.55 — it
+   * works in our testing, but if Hyprland rejects it for some token the
+   * dispatch will surface as a Lua parse error in the response body.
+   */
+  moveActiveToWorkspace(target: number | WorkspaceSelector, silent = true): Promise<string> {
+    const sel = normalizeWorkspaceArg(target);
     const follow = silent ? "false" : "true";
-    return this.send(`/dispatch hl.dsp.window.move({ workspace = ${index}, follow = ${follow} })`);
+    return this.send(
+      `/dispatch hl.dsp.window.move({ workspace = ${toFocusWorkspaceArg(sel)}, follow = ${follow} })`,
+    );
   }
 
   toggleScratchpad(name = "scratchpad"): Promise<string> {
@@ -337,6 +363,16 @@ export interface HyprOption {
 /** Lua string literal: wrap in `"..."` and escape backslashes / quotes. */
 export function luaStr(s: string): string {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Accept either a bare workspace number (legacy call sites & tests) or a
+ * full `WorkspaceSelector`. Numbers are clamped to the same 1..10 range
+ * the action handler used to enforce.
+ */
+function normalizeWorkspaceArg(t: number | WorkspaceSelector): WorkspaceSelector {
+  if (typeof t === "number") return { kind: "numeric", index: clampNumericIndex(t) };
+  return t;
 }
 
 /**

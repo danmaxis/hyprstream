@@ -6560,6 +6560,114 @@ function parseFullscreenState(raw) {
   return "none";
 }
 
+// src/hyprland/workspace-selector.ts
+function luaStr(s) {
+  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+var RELATIVE_TOKENS = [
+  "r+1",
+  "r-1",
+  "m+1",
+  "m-1",
+  "e+1",
+  "e-1",
+  "previous"
+];
+function parseSettings(raw) {
+  const s = raw ?? {};
+  if (s.selector && typeof s.selector === "object") {
+    const parsed = parseSelector(s.selector);
+    if (parsed) return parsed;
+  }
+  if (s.index !== void 0) {
+    return { kind: "numeric", index: clampNumericIndex(s.index) };
+  }
+  return { kind: "numeric", index: 1 };
+}
+function parseSelector(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw;
+  switch (o.kind) {
+    case "numeric":
+      return { kind: "numeric", index: clampNumericIndex(o.index) };
+    case "named": {
+      const name = typeof o.name === "string" ? o.name.trim() : "";
+      if (!name) return null;
+      return { kind: "named", name };
+    }
+    case "special": {
+      const raw2 = typeof o.name === "string" ? o.name.trim() : "";
+      const name = raw2.startsWith("special:") ? raw2.slice("special:".length) : raw2;
+      return { kind: "special", name };
+    }
+    case "scratchpad":
+      return { kind: "scratchpad" };
+    case "relative": {
+      const token = typeof o.token === "string" ? o.token : "";
+      if (RELATIVE_TOKENS.includes(token)) {
+        return { kind: "relative", token };
+      }
+      return null;
+    }
+  }
+  return null;
+}
+function clampNumericIndex(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 1;
+  return Math.min(10, Math.max(1, Math.trunc(v)));
+}
+function toFocusWorkspaceArg(sel) {
+  switch (sel.kind) {
+    case "numeric":
+      return String(sel.index);
+    case "named":
+      return luaStr(sel.name);
+    case "special":
+      return luaStr(sel.name ? `special:${sel.name}` : "special");
+    case "scratchpad":
+      return luaStr("special:scratchpad");
+    case "relative":
+      return luaStr(sel.token);
+  }
+}
+function toToggleSpecialName(sel) {
+  if (sel.kind === "special") return sel.name;
+  if (sel.kind === "scratchpad") return "scratchpad";
+  return null;
+}
+function toDisplayLabel(sel) {
+  switch (sel.kind) {
+    case "numeric":
+      return { text: String(sel.index) };
+    case "named":
+      return { glyph: "#", text: truncate(sel.name, 6) };
+    case "special":
+      return { glyph: "\u2605", text: sel.name ? truncate(sel.name, 6) : "SP" };
+    case "scratchpad":
+      return { glyph: "\u2605", text: "SCR" };
+    case "relative":
+      return { glyph: relativeGlyph(sel.token), text: sel.token === "previous" ? "PRV" : sel.token };
+  }
+}
+function relativeGlyph(token) {
+  switch (token) {
+    case "previous":
+      return "\u27F2";
+    case "r+1":
+    case "m+1":
+    case "e+1":
+      return "\u2192";
+    case "r-1":
+    case "m-1":
+    case "e-1":
+      return "\u2190";
+  }
+}
+function truncate(s, max) {
+  return s.length <= max ? s : s.slice(0, max - 1) + "\u2026";
+}
+
 // src/hyprland/dispatch.ts
 var Hyprctl = class {
   resolveEnv;
@@ -6657,7 +6765,7 @@ var Hyprctl = class {
    * current value should read `process.env.<NAME>` instead.
    */
   async setEnv(name, value) {
-    return this.send(`/eval hl.env(${luaStr(name)}, ${luaStr(String(value))})`);
+    return this.send(`/eval hl.env(${luaStr2(name)}, ${luaStr2(String(value))})`);
   }
   async query(name, ...args) {
     const body = await this.send(jsonQueryPayload(name, ...args));
@@ -6686,19 +6794,39 @@ var Hyprctl = class {
     return this.send(`/dispatch ${args.join(" ")}`);
   }
   // ---- High-level dispatchers (Hyprland 0.55 Lua API) ----
-  focusWorkspace(index) {
-    return this.send(`/dispatch hl.dsp.focus({ workspace = ${index} })`);
+  /**
+   * Focus a workspace. Accepts a numeric ID (legacy) or a full
+   * `WorkspaceSelector`. Special / scratchpad selectors are routed through
+   * `toggle_special` so a second tap hides the overlay — that matches the
+   * UX users expect from scratchpad keybinds.
+   */
+  focusWorkspace(target) {
+    const sel = normalizeWorkspaceArg(target);
+    const togName = toToggleSpecialName(sel);
+    if (togName !== null) {
+      return this.toggleScratchpad(togName);
+    }
+    return this.send(`/dispatch hl.dsp.focus({ workspace = ${toFocusWorkspaceArg(sel)} })`);
   }
-  /** Move active window to workspace. `silent=true` means don't follow focus. */
-  moveActiveToWorkspace(index, silent = true) {
+  /**
+   * Move active window to workspace. `silent=true` means don't follow focus.
+   * String-selector support for `hl.dsp.window.move` (special / named /
+   * relative tokens) is not yet documented in LUA_SCRIPTS.md for 0.55 — it
+   * works in our testing, but if Hyprland rejects it for some token the
+   * dispatch will surface as a Lua parse error in the response body.
+   */
+  moveActiveToWorkspace(target, silent = true) {
+    const sel = normalizeWorkspaceArg(target);
     const follow = silent ? "false" : "true";
-    return this.send(`/dispatch hl.dsp.window.move({ workspace = ${index}, follow = ${follow} })`);
+    return this.send(
+      `/dispatch hl.dsp.window.move({ workspace = ${toFocusWorkspaceArg(sel)}, follow = ${follow} })`
+    );
   }
   toggleScratchpad(name = "scratchpad") {
-    return this.send(`/dispatch hl.dsp.workspace.toggle_special(${luaStr(name)})`);
+    return this.send(`/dispatch hl.dsp.workspace.toggle_special(${luaStr2(name)})`);
   }
   focusDirection(dir) {
-    return this.send(`/dispatch hl.dsp.focus({ direction = ${luaStr(dir)} })`);
+    return this.send(`/dispatch hl.dsp.focus({ direction = ${luaStr2(dir)} })`);
   }
   toggleFloating() {
     return this.send(`/dispatch hl.dsp.window.float({ action = "toggle" })`);
@@ -6706,7 +6834,7 @@ var Hyprctl = class {
   /** mode 0 = fullscreen, mode 1 = maximized (matches the old hyprctl semantics). */
   toggleFullscreen(mode = 0) {
     const luaMode = mode === 1 ? "maximized" : "fullscreen";
-    return this.send(`/dispatch hl.dsp.window.fullscreen({ mode = ${luaStr(luaMode)}, action = "toggle" })`);
+    return this.send(`/dispatch hl.dsp.window.fullscreen({ mode = ${luaStr2(luaMode)}, action = "toggle" })`);
   }
   toggleFakeFullscreen() {
     return this.send(
@@ -6721,7 +6849,7 @@ var Hyprctl = class {
   }
   closeWindowByAddress(address) {
     const a = address.startsWith("0x") ? address : `0x${address}`;
-    return this.send(`/dispatch hl.dsp.window.close({ window = ${luaStr(`address:${a}`)} })`);
+    return this.send(`/dispatch hl.dsp.window.close({ window = ${luaStr2(`address:${a}`)} })`);
   }
   /**
    * Swap the workspaces of two monitors.
@@ -6753,7 +6881,7 @@ var Hyprctl = class {
       }
     }
     return this.send(
-      `/dispatch hl.dsp.workspace.swap_monitors({ monitor1 = ${luaStr(mon1)}, monitor2 = ${luaStr(mon2)} })`
+      `/dispatch hl.dsp.workspace.swap_monitors({ monitor1 = ${luaStr2(mon1)}, monitor2 = ${luaStr2(mon2)} })`
     );
   }
   /** Resize the active window by signed pixel deltas on each axis. */
@@ -6763,10 +6891,10 @@ var Hyprctl = class {
     return this.send(`/dispatch hl.dsp.window.resize({ x = ${x}, y = ${y}, relative = true })`);
   }
   swapWindow(dir) {
-    return this.send(`/dispatch hl.dsp.window.swap({ direction = ${luaStr(dir)} })`);
+    return this.send(`/dispatch hl.dsp.window.swap({ direction = ${luaStr2(dir)} })`);
   }
   exec(cmd) {
-    return this.send(`/dispatch hl.dsp.exec_cmd(${luaStr(cmd)})`);
+    return this.send(`/dispatch hl.dsp.exec_cmd(${luaStr2(cmd)})`);
   }
   /**
    * Close every window on the given workspace in a single batched request.
@@ -6779,7 +6907,7 @@ var Hyprctl = class {
     if (targets2.length === 0) return 0;
     const cmds = targets2.map((c) => {
       const addr = c.address.startsWith("0x") ? c.address : `0x${c.address}`;
-      return `dispatch hl.dsp.window.close({ window = ${luaStr(`address:${addr}`)} })`;
+      return `dispatch hl.dsp.window.close({ window = ${luaStr2(`address:${addr}`)} })`;
     });
     try {
       await this.send(`[[BATCH]]${cmds.join(" ; ")}`);
@@ -6797,8 +6925,12 @@ var Hyprctl = class {
     }
   }
 };
-function luaStr(s) {
+function luaStr2(s) {
   return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+function normalizeWorkspaceArg(t) {
+  if (typeof t === "number") return { kind: "numeric", index: clampNumericIndex(t) };
+  return t;
 }
 function luaTableForKeyword(keyword, value) {
   const parts = keyword.split(":").filter((p) => p.length > 0);
@@ -6815,7 +6947,7 @@ function formatLuaScalar(v) {
   const s = String(v).trim();
   if (s === "true" || s === "false") return s;
   if (s !== "" && /^-?\d+(\.\d+)?$/.test(s)) return s;
-  return luaStr(s);
+  return luaStr2(s);
 }
 function isDirection(s) {
   return s === "l" || s === "r" || s === "u" || s === "d";
@@ -6960,6 +7092,7 @@ var HyprState = class extends import_node_events2.EventEmitter {
   hyprctl;
   workspaces = /* @__PURE__ */ new Map();
   activeWsId = 1;
+  activeSpecial_ = null;
   active = null;
   started = false;
   refreshDebounceMs;
@@ -7008,6 +7141,14 @@ var HyprState = class extends import_node_events2.EventEmitter {
   get activeWorkspaceId() {
     return this.activeWsId;
   }
+  /**
+   * Currently overlaid special workspace, or null when no special is
+   * showing on any monitor. Used by Workspace Focus to render the "active"
+   * state for `kind: "special"` and `kind: "scratchpad"` buttons.
+   */
+  get activeSpecial() {
+    return this.activeSpecial_;
+  }
   get activeClient() {
     return this.active;
   }
@@ -7025,10 +7166,11 @@ var HyprState = class extends import_node_events2.EventEmitter {
   async refresh() {
     if (this.degraded && Date.now() < this.quietUntil) return;
     try {
-      const [wsList, activeWs, activeWin] = await Promise.all([
+      const [wsList, activeWs, activeWin, monitors] = await Promise.all([
         this.hyprctl.workspaces(),
         this.hyprctl.activeWorkspace(),
-        this.hyprctl.activeWindow()
+        this.hyprctl.activeWindow(),
+        this.hyprctl.monitors()
       ]);
       const next = /* @__PURE__ */ new Map();
       for (const ws of wsList) {
@@ -7041,6 +7183,17 @@ var HyprState = class extends import_node_events2.EventEmitter {
       this.workspaces = next;
       this.activeWsId = activeWs.id;
       this.active = activeWin;
+      let special = null;
+      for (const m of monitors) {
+        const sw = m.specialWorkspace;
+        if (sw && sw.name) {
+          const bare = sw.name.startsWith("special:") ? sw.name.slice("special:".length) : sw.name;
+          if (special === null || m.focused) {
+            special = { name: bare, monitor: m.name };
+          }
+        }
+      }
+      this.activeSpecial_ = special;
       this.consecutiveErrors = 0;
       this.lastError = null;
       if (this.degraded) {
@@ -7620,12 +7773,18 @@ var ACCENT_OK = "#3ec06b";
 var ACCENT_BAD = "#e93545";
 var FONT = "Inter, sans-serif";
 function workspaceIconSvg(params) {
-  const { index, state, windowCount = 0 } = params;
+  const { index, state, windowCount = 0, label } = params;
   const accent = params.activeColor ?? DEFAULT_ACTIVE;
   const display = params.countDisplay ?? "badge";
   const bg = state === "active" ? accent : BG_INACTIVE;
   const fg = state === "active" ? "#ffffff" : state === "busy" ? BUSY_FG : EMPTY_FG;
   const accentBorder = state === "active" ? "#ffffff33" : `${accent}66`;
+  if (label) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="${bg}" stroke="${accentBorder}" stroke-width="2"/>
+  ${renderLabel(label, fg)}
+</svg>`;
+  }
   const indicator = state === "busy" && windowCount > 0 ? renderCountIndicator(display, windowCount, accent) : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
   <rect width="144" height="144" rx="20" fill="${bg}" stroke="${accentBorder}" stroke-width="2"/>
@@ -7633,6 +7792,24 @@ function workspaceIconSvg(params) {
         fill="${fg}" text-anchor="middle">${index}</text>
   ${indicator}
 </svg>`;
+}
+function renderLabel(label, fg) {
+  const glyph = label.glyph ?? "";
+  const text = label.text ?? "";
+  if (!glyph) {
+    const fontSize = text.length <= 2 ? 92 : text.length <= 4 ? 64 : 44;
+    return `<text x="72" y="100" font-family="${FONT}" font-size="${fontSize}" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(text)}</text>`;
+  }
+  return `
+    <text x="72" y="78" font-family="${FONT}" font-size="56" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(glyph)}</text>
+    <text x="72" y="118" font-family="${FONT}" font-size="22" font-weight="700"
+          fill="${fg}" text-anchor="middle" letter-spacing="1">${escapeXml(text)}</text>
+  `;
+}
+function escapeXml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 function renderCountIndicator(display, count, accent) {
   switch (display) {
@@ -7672,19 +7849,37 @@ function renderCountIndicator(display, count, accent) {
     }
   }
 }
-function moveWindowIconSvg({ index, accentColor }) {
+function moveWindowIconSvg({ index, accentColor, label }) {
   const accent = accentColor ?? "#bb9af7";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
-  <rect width="144" height="144" rx="20" fill="${BG_INACTIVE}" stroke="${accent}66" stroke-width="2"/>
-  <text x="72" y="92" font-family="${FONT}" font-size="76" font-weight="700"
-        fill="${BUSY_FG}" text-anchor="middle">${index}</text>
+  const arrowBadge = `
   <g transform="translate(108,108)" fill="${accent}">
     <circle cx="0" cy="0" r="16" fill="${accent}" opacity="0.95"/>
     <path d="M-7,-1 L3,-1 L3,-6 L9,0 L3,6 L3,1 L-7,1 Z" fill="${BG_INACTIVE}"/>
   </g>
   <text x="72" y="128" font-family="${FONT}" font-size="14" font-weight="600"
-        fill="${EMPTY_FG}" text-anchor="middle">SEND \u2192</text>
+        fill="${EMPTY_FG}" text-anchor="middle">SEND \u2192</text>`;
+  const center = label ? renderMoveLabel(label, BUSY_FG) : `<text x="72" y="92" font-family="${FONT}" font-size="76" font-weight="700"
+        fill="${BUSY_FG}" text-anchor="middle">${index}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="${BG_INACTIVE}" stroke="${accent}66" stroke-width="2"/>
+  ${center}
+  ${arrowBadge}
 </svg>`;
+}
+function renderMoveLabel(label, fg) {
+  const glyph = label.glyph ?? "";
+  const text = label.text ?? "";
+  if (!glyph) {
+    const fontSize = text.length <= 2 ? 76 : text.length <= 4 ? 54 : 38;
+    return `<text x="72" y="92" font-family="${FONT}" font-size="${fontSize}" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(text)}</text>`;
+  }
+  return `
+    <text x="72" y="70" font-family="${FONT}" font-size="48" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(glyph)}</text>
+    <text x="72" y="104" font-family="${FONT}" font-size="20" font-weight="700"
+          fill="${fg}" text-anchor="middle" letter-spacing="1">${escapeXml(text)}</text>
+  `;
 }
 function muteIconSvg({ kind, muted, volume }) {
   const accent = muted ? ACCENT_BAD : ACCENT_OK;
@@ -8367,12 +8562,12 @@ var WorkspaceFocusAction = class extends (_a = SingletonAction) {
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
   }
   async onKeyDown(ev) {
-    const idx = clampIndex(ev.payload.settings.index);
+    const sel = parseSettings(ev.payload.settings);
     console.error(
-      `[hyprstream] onKeyDown ws=${idx} settings=${JSON.stringify(ev.payload.settings)}`
+      `[hyprstream] onKeyDown sel=${JSON.stringify(sel)} settings=${JSON.stringify(ev.payload.settings)}`
     );
     try {
-      const out = await this.state.hyprctl.focusWorkspace(idx);
+      const out = await this.state.hyprctl.focusWorkspace(sel);
       console.error(`[hyprstream] dispatch ok: ${out}`);
     } catch (err) {
       const msg = stringify(err);
@@ -8392,15 +8587,30 @@ var WorkspaceFocusAction = class extends (_a = SingletonAction) {
     await Promise.all(tasks);
   }
   async repaint(action2, settings2) {
-    const idx = clampIndex(settings2.index);
-    const ws = this.state.getWorkspace(idx);
-    const isActive = this.state.activeWorkspaceId === idx;
+    const sel = parseSettings(settings2);
+    const countDisplay = clampCountDisplay(settings2.countDisplay);
+    if (sel.kind === "numeric") {
+      const ws = this.state.getWorkspace(sel.index);
+      const isActive2 = this.state.activeWorkspaceId === sel.index;
+      const icon2 = await renderWorkspaceIcon({
+        index: sel.index,
+        state: stateOf(isActive2, ws),
+        windowCount: ws.windows,
+        activeColor: settings2.color,
+        countDisplay
+      });
+      await action2.setImage(icon2.dataUri);
+      return;
+    }
+    const label = toDisplayLabel(sel);
+    const isActive = isSelectorActive(sel, this.state);
     const icon = await renderWorkspaceIcon({
-      index: idx,
-      state: stateOf(isActive, ws),
-      windowCount: ws.windows,
+      index: 0,
+      // unused when label is present
+      state: isActive ? "active" : "empty",
       activeColor: settings2.color,
-      countDisplay: clampCountDisplay(settings2.countDisplay)
+      countDisplay,
+      label
     });
     await action2.setImage(icon.dataUri);
   }
@@ -8428,11 +8638,11 @@ var WorkspaceMoveWindowAction = class extends (_a2 = SingletonAction) {
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
   }
   async onKeyDown(ev) {
-    const idx = clampIndex(ev.payload.settings.index);
+    const sel = parseSettings(ev.payload.settings);
     const follow = ev.payload.settings.followFocus === true;
-    console.error(`[hyprstream] move-window ws=${idx} follow=${follow}`);
+    console.error(`[hyprstream] move-window sel=${JSON.stringify(sel)} follow=${follow}`);
     try {
-      await this.state.hyprctl.moveActiveToWorkspace(idx, !follow);
+      await this.state.hyprctl.moveActiveToWorkspace(sel, !follow);
       console.error(`[hyprstream] move-window dispatch ok`);
     } catch (err) {
       const msg = stringify(err);
@@ -8442,9 +8652,12 @@ var WorkspaceMoveWindowAction = class extends (_a2 = SingletonAction) {
     }
   }
   async repaint(action2, settings2) {
+    const sel = parseSettings(settings2);
+    const label = sel.kind === "numeric" ? void 0 : toDisplayLabel(sel);
     const icon = await renderMoveWindowIcon({
-      index: clampIndex(settings2.index),
-      accentColor: settings2.color
+      index: sel.kind === "numeric" ? sel.index : 0,
+      accentColor: settings2.color,
+      label
     });
     await action2.setImage(icon.dataUri);
   }
@@ -8452,10 +8665,14 @@ var WorkspaceMoveWindowAction = class extends (_a2 = SingletonAction) {
 _init2 = __decoratorStart(_a2);
 WorkspaceMoveWindowAction = __decorateElement(_init2, 0, "WorkspaceMoveWindowAction", _WorkspaceMoveWindowAction_decorators, WorkspaceMoveWindowAction);
 __runInitializers(_init2, 1, WorkspaceMoveWindowAction);
-function clampIndex(n) {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 1;
-  return Math.min(10, Math.max(1, Math.trunc(v)));
+function isSelectorActive(sel, state) {
+  if (sel.kind === "scratchpad") {
+    return state.activeSpecial?.name === "scratchpad";
+  }
+  if (sel.kind === "special") {
+    return state.activeSpecial?.name === sel.name;
+  }
+  return false;
 }
 function clampCountDisplay(d) {
   return d === "badge" || d === "dots" || d === "bar" || d === "none" ? d : "badge";

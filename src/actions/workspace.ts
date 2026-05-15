@@ -15,9 +15,21 @@ import {
   renderWorkspaceIcon,
   type WindowCountDisplay,
 } from "../render/icon.js";
+import {
+  parseSettings,
+  toDisplayLabel,
+  type SerializedSelector,
+  type WorkspaceSelector,
+} from "../hyprland/workspace-selector.js";
 
+/**
+ * Settings for Workspace Focus. The legacy `index` field is preserved for
+ * backwards compatibility — `parseSettings` migrates `{ index: N }` into
+ * `{ kind: "numeric", index: N }` when no `selector` is present.
+ */
 export type WorkspaceFocusSettings = JsonObject & {
-  /** Workspace number 1..10. */
+  selector?: SerializedSelector;
+  /** Legacy: pre-selector versions only stored a numeric index. */
   index?: number;
   /** Active accent color in `#rrggbb`. */
   color?: string;
@@ -56,12 +68,12 @@ export class WorkspaceFocusAction extends SingletonAction<WorkspaceFocusSettings
   }
 
   override async onKeyDown(ev: KeyDownEvent<WorkspaceFocusSettings>): Promise<void> {
-    const idx = clampIndex(ev.payload.settings.index);
+    const sel = parseSettings(ev.payload.settings);
     console.error(
-      `[hyprstream] onKeyDown ws=${idx} settings=${JSON.stringify(ev.payload.settings)}`,
+      `[hyprstream] onKeyDown sel=${JSON.stringify(sel)} settings=${JSON.stringify(ev.payload.settings)}`,
     );
     try {
-      const out = await this.state.hyprctl.focusWorkspace(idx);
+      const out = await this.state.hyprctl.focusWorkspace(sel);
       console.error(`[hyprstream] dispatch ok: ${out}`);
     } catch (err) {
       const msg = stringify(err);
@@ -86,22 +98,39 @@ export class WorkspaceFocusAction extends SingletonAction<WorkspaceFocusSettings
     action: KeyAction<WorkspaceFocusSettings>,
     settings: WorkspaceFocusSettings,
   ): Promise<void> {
-    const idx = clampIndex(settings.index);
-    const ws = this.state.getWorkspace(idx);
-    const isActive = this.state.activeWorkspaceId === idx;
+    const sel = parseSettings(settings);
+    const countDisplay = clampCountDisplay(settings.countDisplay);
+    if (sel.kind === "numeric") {
+      const ws = this.state.getWorkspace(sel.index);
+      const isActive = this.state.activeWorkspaceId === sel.index;
+      const icon = await renderWorkspaceIcon({
+        index: sel.index,
+        state: stateOf(isActive, ws),
+        windowCount: ws.windows,
+        activeColor: settings.color,
+        countDisplay,
+      });
+      await action.setImage(icon.dataUri);
+      return;
+    }
+    // Non-numeric: render the glyph+label icon. For special/scratchpad
+    // selectors, reflect the active-overlay state with the accent color.
+    const label = toDisplayLabel(sel);
+    const isActive = isSelectorActive(sel, this.state);
     const icon = await renderWorkspaceIcon({
-      index: idx,
-      state: stateOf(isActive, ws),
-      windowCount: ws.windows,
+      index: 0, // unused when label is present
+      state: isActive ? "active" : "empty",
       activeColor: settings.color,
-      countDisplay: clampCountDisplay(settings.countDisplay),
+      countDisplay,
+      label,
     });
     await action.setImage(icon.dataUri);
   }
 }
 
 export type MoveWindowSettings = JsonObject & {
-  /** Destination workspace number 1..10. */
+  selector?: SerializedSelector;
+  /** Legacy: numeric-only destination. */
   index?: number;
   /** Also focus the destination workspace after moving. Default false. */
   followFocus?: boolean;
@@ -135,11 +164,11 @@ export class WorkspaceMoveWindowAction extends SingletonAction<MoveWindowSetting
   }
 
   override async onKeyDown(ev: KeyDownEvent<MoveWindowSettings>): Promise<void> {
-    const idx = clampIndex(ev.payload.settings.index);
+    const sel = parseSettings(ev.payload.settings);
     const follow = ev.payload.settings.followFocus === true;
-    console.error(`[hyprstream] move-window ws=${idx} follow=${follow}`);
+    console.error(`[hyprstream] move-window sel=${JSON.stringify(sel)} follow=${follow}`);
     try {
-      await this.state.hyprctl.moveActiveToWorkspace(idx, !follow);
+      await this.state.hyprctl.moveActiveToWorkspace(sel, !follow);
       console.error(`[hyprstream] move-window dispatch ok`);
     } catch (err) {
       const msg = stringify(err);
@@ -153,18 +182,25 @@ export class WorkspaceMoveWindowAction extends SingletonAction<MoveWindowSetting
     action: KeyAction<MoveWindowSettings>,
     settings: MoveWindowSettings,
   ): Promise<void> {
+    const sel = parseSettings(settings);
+    const label = sel.kind === "numeric" ? undefined : toDisplayLabel(sel);
     const icon = await renderMoveWindowIcon({
-      index: clampIndex(settings.index),
+      index: sel.kind === "numeric" ? sel.index : 0,
       accentColor: settings.color,
+      label,
     });
     await action.setImage(icon.dataUri);
   }
 }
 
-function clampIndex(n: unknown): number {
-  const v = Number(n);
-  if (!Number.isFinite(v)) return 1;
-  return Math.min(10, Math.max(1, Math.trunc(v)));
+function isSelectorActive(sel: WorkspaceSelector, state: HyprState): boolean {
+  if (sel.kind === "scratchpad") {
+    return state.activeSpecial?.name === "scratchpad";
+  }
+  if (sel.kind === "special") {
+    return state.activeSpecial?.name === sel.name;
+  }
+  return false;
 }
 
 function clampCountDisplay(d: unknown): WindowCountDisplay {

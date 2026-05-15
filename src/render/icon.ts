@@ -21,6 +21,12 @@ const FONT = "Inter, sans-serif";
 
 export type WindowCountDisplay = "badge" | "dots" | "bar" | "none";
 
+/** Glyph + short text composition used by non-numeric workspace icons. */
+export interface IconLabel {
+  glyph?: string;
+  text: string;
+}
+
 export interface WorkspaceIconParams {
   index: number;
   state: "active" | "busy" | "empty";
@@ -29,15 +35,30 @@ export interface WorkspaceIconParams {
   activeColor?: string;
   /** How to render the window count when state==="busy". Default: "badge". */
   countDisplay?: WindowCountDisplay;
+  /**
+   * Custom label for non-numeric destinations (special, scratchpad, named,
+   * relative). When present, replaces the numeric centerpiece and suppresses
+   * the window-count indicator (those don't have a stable target id).
+   */
+  label?: IconLabel;
 }
 
 export function workspaceIconSvg(params: WorkspaceIconParams): string {
-  const { index, state, windowCount = 0 } = params;
+  const { index, state, windowCount = 0, label } = params;
   const accent = params.activeColor ?? DEFAULT_ACTIVE;
   const display = params.countDisplay ?? "badge";
   const bg = state === "active" ? accent : BG_INACTIVE;
   const fg = state === "active" ? "#ffffff" : state === "busy" ? BUSY_FG : EMPTY_FG;
   const accentBorder = state === "active" ? "#ffffff33" : `${accent}66`;
+
+  // Custom label path: glyph + short text. No count indicator (specials and
+  // relatives don't map to a single workspace id we can count windows on).
+  if (label) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="${bg}" stroke="${accentBorder}" stroke-width="2"/>
+  ${renderLabel(label, fg)}
+</svg>`;
+  }
 
   const indicator =
     state === "busy" && windowCount > 0
@@ -50,6 +71,32 @@ export function workspaceIconSvg(params: WorkspaceIconParams): string {
         fill="${fg}" text-anchor="middle">${index}</text>
   ${indicator}
 </svg>`;
+}
+
+function renderLabel(label: IconLabel, fg: string): string {
+  const glyph = label.glyph ?? "";
+  const text = label.text ?? "";
+  if (!glyph) {
+    // No glyph: render text as the centerpiece, sized like the numeric mode.
+    const fontSize = text.length <= 2 ? 92 : text.length <= 4 ? 64 : 44;
+    return `<text x="72" y="100" font-family="${FONT}" font-size="${fontSize}" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(text)}</text>`;
+  }
+  return `
+    <text x="72" y="78" font-family="${FONT}" font-size="56" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(glyph)}</text>
+    <text x="72" y="118" font-family="${FONT}" font-size="22" font-weight="700"
+          fill="${fg}" text-anchor="middle" letter-spacing="1">${escapeXml(text)}</text>
+  `;
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function renderCountIndicator(
@@ -101,21 +148,44 @@ export interface MoveWindowIconParams {
   index: number;
   /** Optional accent color for the arrow overlay. */
   accentColor?: string;
+  /** Non-numeric destination label; takes precedence over `index` when set. */
+  label?: IconLabel;
 }
 
-export function moveWindowIconSvg({ index, accentColor }: MoveWindowIconParams): string {
+export function moveWindowIconSvg({ index, accentColor, label }: MoveWindowIconParams): string {
   const accent = accentColor ?? "#bb9af7";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
-  <rect width="144" height="144" rx="20" fill="${BG_INACTIVE}" stroke="${accent}66" stroke-width="2"/>
-  <text x="72" y="92" font-family="${FONT}" font-size="76" font-weight="700"
-        fill="${BUSY_FG}" text-anchor="middle">${index}</text>
+  const arrowBadge = `
   <g transform="translate(108,108)" fill="${accent}">
     <circle cx="0" cy="0" r="16" fill="${accent}" opacity="0.95"/>
     <path d="M-7,-1 L3,-1 L3,-6 L9,0 L3,6 L3,1 L-7,1 Z" fill="${BG_INACTIVE}"/>
   </g>
   <text x="72" y="128" font-family="${FONT}" font-size="14" font-weight="600"
-        fill="${EMPTY_FG}" text-anchor="middle">SEND →</text>
+        fill="${EMPTY_FG}" text-anchor="middle">SEND →</text>`;
+  const center = label
+    ? renderMoveLabel(label, BUSY_FG)
+    : `<text x="72" y="92" font-family="${FONT}" font-size="76" font-weight="700"
+        fill="${BUSY_FG}" text-anchor="middle">${index}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144">
+  <rect width="144" height="144" rx="20" fill="${BG_INACTIVE}" stroke="${accent}66" stroke-width="2"/>
+  ${center}
+  ${arrowBadge}
 </svg>`;
+}
+
+function renderMoveLabel(label: IconLabel, fg: string): string {
+  const glyph = label.glyph ?? "";
+  const text = label.text ?? "";
+  if (!glyph) {
+    const fontSize = text.length <= 2 ? 76 : text.length <= 4 ? 54 : 38;
+    return `<text x="72" y="92" font-family="${FONT}" font-size="${fontSize}" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(text)}</text>`;
+  }
+  return `
+    <text x="72" y="70" font-family="${FONT}" font-size="48" font-weight="700"
+          fill="${fg}" text-anchor="middle">${escapeXml(glyph)}</text>
+    <text x="72" y="104" font-family="${FONT}" font-size="20" font-weight="700"
+          fill="${fg}" text-anchor="middle" letter-spacing="1">${escapeXml(text)}</text>
+  `;
 }
 
 export interface MuteIconParams {

@@ -39,6 +39,12 @@ export interface HyprMonitor {
   width: number;
   height: number;
   activeWorkspace: { id: number; name: string };
+  /**
+   * Currently overlaid special workspace, if any. Hyprland reports `id: -99`
+   * (or another negative sentinel) and an empty `name` when no special is
+   * showing — treat name="" as "no overlay".
+   */
+  specialWorkspace?: { id: number; name: string };
   focused: boolean;
 }
 
