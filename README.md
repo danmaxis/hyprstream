@@ -6,6 +6,8 @@ Your tiling compositor already has the best keybinds in the world. `hyprstream` 
 
 It is meant for the kind of Hyprland setup where every keybind is one keystroke, every config line was chosen on purpose, and a Stream Deck would have been a toy — until now.
 
+<img width="906" height="456" alt="image" src="https://github.com/user-attachments/assets/00d60d14-3da6-4e71-be4f-ddd74086a34d" />
+
 ---
 
 ## Why it exists
@@ -33,6 +35,9 @@ Every key answers its question without you having to look anywhere else. That's 
 - **Six system displays, zero deps.** Clock, CPU, RAM, battery, temperature, uptime — all read from `/proc` and `/sys`. They work on bare Hyprland, on Sway, on a TTY, on any Linux box. The plugin doesn't *require* Hyprland to be useful.
 - **Hyprland-native.** Window state, workspace events, monitor topology, dispatch batching via `hyprctl --batch`. Everything that has a Hyprland-shaped solution uses it.
 - **No Electron, no Python, no daemons.** Pure Node.js. ~300 KB CJS bundle (sharp kept external for native binaries). Cold start measured in tens of ms.
+
+<img width="830" height="446" alt="image" src="https://github.com/user-attachments/assets/83bd9f19-28dd-495d-b080-a8c9f730f082" />
+
 
 ---
 
