@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { spawn as nodeSpawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { defaultRunner, type CommandRunner } from "@hyprstream/deck-core";
+import { defaultRunner, hostCommand, type CommandRunner } from "@hyprstream/deck-core";
 
 export type PlaybackStatus = "Playing" | "Paused" | "Stopped" | "None";
 
@@ -62,7 +62,14 @@ export class Mpris extends EventEmitter {
     super();
     this.runner = opts.runner ?? defaultRunner;
     this.bin = opts.bin ?? "playerctl";
-    this.spawn = opts.spawn ?? (nodeSpawn as never);
+    // Default follow-spawn routes through the host when sandboxed (Flatpak
+    // OpenDeck), where `playerctl` isn't on the sandbox PATH.
+    this.spawn =
+      opts.spawn ??
+      ((cmd: string, args: string[]) => {
+        const [c, a] = hostCommand(cmd, args);
+        return nodeSpawn(c, a) as ChildProcessWithoutNullStreams;
+      });
     this.reconnectMs = opts.reconnectMs ?? 1000;
   }
 

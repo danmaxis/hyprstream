@@ -9,11 +9,17 @@ import {
   type JsonObject,
 } from "@elgato/streamdeck";
 import streamDeck from "@elgato/streamdeck";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { ObsClient, sniffImageMime, type ObsClientOptions } from "@hyprstream/deck-core";
+import {
+  ObsClient,
+  sniffImageMime,
+  writeHostFile,
+  inFlatpak,
+  type ObsClientOptions,
+} from "@hyprstream/deck-core";
 import type { Mpris } from "../system/mpris.js";
 import { fetchArt } from "../system/albumart.js";
 import { renderNowPlayingIcon } from "../render/nowplaying.js";
@@ -152,15 +158,18 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
     }
   }
 
-  /** Write art to a fresh file so OBS reloads the image on the settings change. */
-  private writeArtFile(art: Buffer, dir: string): string | null {
+  /** Write art to a fresh file so OBS reloads the image on the settings change.
+   *  Under Flatpak the file is written on the HOST (via writeHostFile) so a
+   *  Flatpak/Snap OBS in its own sandbox can read the same path. */
+  private async writeArtFile(art: Buffer, dir: string): Promise<string | null> {
     try {
-      mkdirSync(dir, { recursive: true });
       const ext = sniffImageMime(art).split("/")[1] ?? "jpg";
       const name = `np-${createHash("sha1").update(art).digest("hex").slice(0, 12)}.${ext}`;
       const path = join(dir, name);
-      writeFileSync(path, art);
-      if (this.lastArtFile && this.lastArtFile !== path) {
+      await writeHostFile(path, art);
+      // Best-effort cleanup of the previous file (skipped under Flatpak: the
+      // runtime dir is tmpfs and filenames are content-addressed anyway).
+      if (this.lastArtFile && this.lastArtFile !== path && !inFlatpak()) {
         try {
           rmSync(this.lastArtFile, { force: true });
         } catch {
@@ -184,7 +193,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
     let artFile: string | null = null;
     if (settings.imageSource) {
       const art = await this.currentArt();
-      if (art) artFile = this.writeArtFile(art, settings.artDir || this.defaultArtDir);
+      if (art) artFile = await this.writeArtFile(art, settings.artDir || this.defaultArtDir);
     }
     const updates = planNowPlayingUpdates(meta, settings, artFile);
     for (const u of updates) {
