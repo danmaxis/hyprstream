@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { writeFileSync, rmSync } from "node:fs";
+import { writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -153,6 +153,50 @@ describe("NowPlayingObsAction extra coverage", () => {
     fake.connected = true;
     await a.onDidReceiveSettings(settingsEvent(k1, { textSource: "NP" }));
     expect(fake.setInputSettingsCalls.some((c) => c.name === "NP" && c.settings.text === "Band — Song")).toBe(true);
+    a.onWillDisappear({ action: k1 } as never);
+  });
+
+  it("writes album art to a custom artDir (for granting a Flatpak OBS access)", async () => {
+    const srcPath = join(tmpdir(), `hs-src-${process.pid}.png`);
+    writeFileSync(srcPath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9, 9]));
+    const outDir = join(tmpdir(), `hs-out-${process.pid}`);
+    try {
+      const mpris = new FakeMpris();
+      mpris.currentTitle = "S";
+      mpris.currentArtist = "B";
+      mpris.currentArtUrl = pathToFileURL(srcPath).href;
+      const fake = new FakeObs();
+      const a = new NowPlayingObsAction(mpris as never, () => fake as never);
+      const k1 = action("k1");
+      await a.onWillAppear(appear(k1, { textSource: "NP", imageSource: "Art", artDir: outDir }));
+      fake.connected = true;
+      mpris.emit("change");
+      await flush();
+      const img = fake.setInputSettingsCalls.find((c) => c.name === "Art");
+      expect(img).toBeTruthy();
+      const file = String(img!.settings.file);
+      expect(file.startsWith(outDir)).toBe(true); // wrote into the configured dir
+      expect(existsSync(file)).toBe(true);
+      a.onWillDisappear({ action: k1 } as never);
+    } finally {
+      rmSync(srcPath, { force: true });
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("text now-playing pushes with no album-art file (works on any OBS install)", async () => {
+    const mpris = new FakeMpris();
+    mpris.currentTitle = "S";
+    mpris.currentArtist = "B";
+    const fake = new FakeObs();
+    const a = new NowPlayingObsAction(mpris as never, () => fake as never);
+    const k1 = action("k1");
+    await a.onWillAppear(appear(k1, { textSource: "NP" })); // no imageSource → no filesystem
+    fake.connected = true;
+    mpris.emit("change");
+    await flush();
+    expect(fake.setInputSettingsCalls).toEqual([{ name: "NP", settings: { text: "B — S" } }]);
+    expect(fake.setInputSettingsCalls.some((c) => c.name === "Art")).toBe(false);
     a.onWillDisappear({ action: k1 } as never);
   });
 });

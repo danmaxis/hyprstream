@@ -29,6 +29,16 @@ export type NowPlayingObsSettings = JsonObject &
     obsUrl?: string;
     /** obs-websocket password (omit if auth disabled). */
     obsPassword?: string;
+    /**
+     * Directory the album-art file is written to and handed to OBS's image
+     * source. Default `$XDG_RUNTIME_DIR/hyprstream-media`. Only relevant when
+     * `imageSource` is set. For a **Flatpak OBS**, this path must be inside the
+     * sandbox's filesystem grants — the default maps to `xdg-run/hyprstream
+     * -media`, so a one-time `flatpak override --user
+     * --filesystem=xdg-run/hyprstream-media:ro com.obsproject.Studio` lets
+     * Flatpak OBS read it. Native OBS reads any host path with no override.
+     */
+    artDir?: string;
   };
 
 export type ObsFactory = (opts: ObsClientOptions) => ObsClient;
@@ -49,7 +59,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
   private readonly obsFactory: ObsFactory;
   private obs: ObsClient | null = null;
   private obsKey = "";
-  private artDir = join(process.env.XDG_RUNTIME_DIR ?? tmpdir(), "hyprstream-media");
+  private readonly defaultArtDir = join(process.env.XDG_RUNTIME_DIR ?? tmpdir(), "hyprstream-media");
   private lastArtFile: string | null = null;
 
   constructor(mpris: Mpris, obsFactory: ObsFactory = defaultObsFactory) {
@@ -143,12 +153,12 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
   }
 
   /** Write art to a fresh file so OBS reloads the image on the settings change. */
-  private writeArtFile(art: Buffer): string | null {
+  private writeArtFile(art: Buffer, dir: string): string | null {
     try {
-      mkdirSync(this.artDir, { recursive: true });
+      mkdirSync(dir, { recursive: true });
       const ext = sniffImageMime(art).split("/")[1] ?? "jpg";
       const name = `np-${createHash("sha1").update(art).digest("hex").slice(0, 12)}.${ext}`;
-      const path = join(this.artDir, name);
+      const path = join(dir, name);
       writeFileSync(path, art);
       if (this.lastArtFile && this.lastArtFile !== path) {
         try {
@@ -174,7 +184,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
     let artFile: string | null = null;
     if (settings.imageSource) {
       const art = await this.currentArt();
-      if (art) artFile = this.writeArtFile(art);
+      if (art) artFile = this.writeArtFile(art, settings.artDir || this.defaultArtDir);
     }
     const updates = planNowPlayingUpdates(meta, settings, artFile);
     for (const u of updates) {
