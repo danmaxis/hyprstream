@@ -1,5 +1,8 @@
 node_modules/
 dist/
+# built plugin bundles are artifacts — distribution is via the packaged
+# .streamDeckPlugin on GitHub Releases, produced by `npm run package`.
+*.sdPlugin/bin/
 *.log
 .DS_Store
 *.streamDeckPlugin
