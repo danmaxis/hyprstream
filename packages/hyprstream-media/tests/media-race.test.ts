@@ -26,6 +26,7 @@ function fakeMpris(): EventEmitter & Mpris {
   Object.defineProperty(ee, "currentArtUrl", { get: () => artUrl });
   ee.acquire = () => {};
   ee.release = () => {};
+  ee.setPlayer = () => {};
   ee._setArt = (s) => {
     artUrl = s;
   };

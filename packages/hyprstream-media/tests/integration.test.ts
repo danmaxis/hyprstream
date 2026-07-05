@@ -51,6 +51,9 @@ class FakeMpris {
   release() {
     this.releaseCalls++;
   }
+  setPlayer() {
+    /* no-op for tests */
+  }
 }
 
 function fakeAction() {

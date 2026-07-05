@@ -11,6 +11,13 @@ export interface MprisOptions {
   spawn?: (cmd: string, args: string[]) => ChildProcessWithoutNullStreams;
   /** ms to wait before re-spawning playerctl --follow after an exit. */
   reconnectMs?: number;
+  /**
+   * Target a specific MPRIS player (playerctl `--player=<name>`, e.g.
+   * "spotify"). When unset, playerctl follows its default player — which is
+   * ambiguous when several players are registered (a browser tab + Spotify),
+   * often landing on a stopped one. Set this to pin the source.
+   */
+  player?: string;
 }
 
 /**
@@ -57,11 +64,13 @@ export class Mpris extends EventEmitter {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private refcount = 0;
+  private player: string | undefined;
 
   constructor(opts: MprisOptions = {}) {
     super();
     this.runner = opts.runner ?? defaultRunner;
     this.bin = opts.bin ?? "playerctl";
+    this.player = normalizePlayer(opts.player);
     // Default follow-spawn routes through the host when sandboxed (Flatpak
     // OpenDeck), where `playerctl` isn't on the sandbox PATH.
     this.spawn =
@@ -73,9 +82,29 @@ export class Mpris extends EventEmitter {
     this.reconnectMs = opts.reconnectMs ?? 1000;
   }
 
+  /** playerctl `--player=<name>` prefix, or [] when following the default. */
+  private playerArgs(): string[] {
+    return this.player ? [`--player=${this.player}`] : [];
+  }
+
+  /**
+   * Pin (or unpin, with undefined/empty) the target MPRIS player. If the
+   * follow stream is live and the target actually changed, it is restarted so
+   * the new player takes effect immediately.
+   */
+  setPlayer(name?: string): void {
+    const next = normalizePlayer(name);
+    if (next === this.player) return;
+    this.player = next;
+    if (this.refcount > 0 && !this.closed) {
+      this.stopFollow();
+      this.startFollow();
+    }
+  }
+
   async getStatus(): Promise<PlaybackStatus> {
     try {
-      const out = (await this.runner(this.bin, ["status"])).trim();
+      const out = (await this.runner(this.bin, [...this.playerArgs(), "status"])).trim();
       if (out === "Playing" || out === "Paused" || out === "Stopped") return out;
       return "None";
     } catch {
@@ -85,8 +114,9 @@ export class Mpris extends EventEmitter {
 
   async getArtUrl(): Promise<string | null> {
     try {
-      const out = (await this.runner(this.bin, ["metadata", "--format", "{{mpris:artUrl}}"]))
-        .trim();
+      const out = (
+        await this.runner(this.bin, [...this.playerArgs(), "metadata", "--format", "{{mpris:artUrl}}"])
+      ).trim();
       return cleanField(out);
     } catch {
       return null;
@@ -94,15 +124,15 @@ export class Mpris extends EventEmitter {
   }
 
   playPause(): Promise<string> {
-    return this.runner(this.bin, ["play-pause"]).then(() => "ok");
+    return this.runner(this.bin, [...this.playerArgs(), "play-pause"]).then(() => "ok");
   }
 
   next(): Promise<string> {
-    return this.runner(this.bin, ["next"]).then(() => "ok");
+    return this.runner(this.bin, [...this.playerArgs(), "next"]).then(() => "ok");
   }
 
   prev(): Promise<string> {
-    return this.runner(this.bin, ["previous"]).then(() => "ok");
+    return this.runner(this.bin, [...this.playerArgs(), "previous"]).then(() => "ok");
   }
 
   acquire(): void {
@@ -145,6 +175,7 @@ export class Mpris extends EventEmitter {
     }
     try {
       this.follow = this.spawn(this.bin, [
+        ...this.playerArgs(),
         "--follow",
         "metadata",
         "--format",
@@ -328,4 +359,10 @@ function parsePlaybackStatus(raw: string): PlaybackStatus {
   const t = raw.trim();
   if (t === "Playing" || t === "Paused" || t === "Stopped") return t;
   return "None";
+}
+
+/** Trim a player name; empty/whitespace becomes undefined (follow default). */
+function normalizePlayer(name?: string): string | undefined {
+  const t = name?.trim();
+  return t ? t : undefined;
 }

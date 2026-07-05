@@ -9,10 +9,10 @@ streamDeck.logger.setLevel(LogLevel.DEBUG);
 const log = createFileLogger("hyprstream-media.log");
 log(`[hyprstream-media] starting. node=${process.version} pid=${process.pid} cwd=${process.cwd()}`);
 
-const mpris = new Mpris();
-
-streamDeck.actions.registerAction(new MediaControlAction(mpris));
-streamDeck.actions.registerAction(new NowPlayingObsAction(mpris));
+// Each action owns its MPRIS follow so their per-action Player targeting
+// (playerctl --player=<name>) doesn't fight over a single shared stream.
+streamDeck.actions.registerAction(new MediaControlAction(new Mpris()));
+streamDeck.actions.registerAction(new NowPlayingObsAction(new Mpris()));
 
 log("[hyprstream-media] 2 actions registered, connecting to OpenDeck WS…");
 

@@ -35,6 +35,8 @@ export type NowPlayingObsSettings = JsonObject &
     obsUrl?: string;
     /** obs-websocket password (omit if auth disabled). */
     obsPassword?: string;
+    /** Pin a specific MPRIS player (e.g. "spotify"); blank = default player. */
+    player?: string;
     /**
      * Directory the album-art file is written to and handed to OBS's image
      * source. Default `$XDG_RUNTIME_DIR/hyprstream-media`. Only relevant when
@@ -76,6 +78,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
   }
 
   override async onWillAppear(ev: WillAppearEvent<NowPlayingObsSettings>): Promise<void> {
+    this.mpris.setPlayer(ev.payload.settings.player);
     if (this.contexts.size === 0) this.mpris.acquire();
     this.contexts.set(ev.action.id, ev.payload.settings);
     this.ensureObs(ev.payload.settings);
@@ -92,6 +95,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<NowPlayingObsSettings>,
   ): Promise<void> {
+    this.mpris.setPlayer(ev.payload.settings.player);
     this.contexts.set(ev.action.id, ev.payload.settings);
     this.ensureObs(ev.payload.settings);
     await this.push(ev.payload.settings);
@@ -100,6 +104,7 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
 
   override async onKeyDown(ev: KeyDownEvent<NowPlayingObsSettings>): Promise<void> {
     // Reconnect if the socket dropped, then force a push.
+    this.mpris.setPlayer(ev.payload.settings.player);
     this.ensureObs(ev.payload.settings);
     try {
       await this.push(ev.payload.settings);

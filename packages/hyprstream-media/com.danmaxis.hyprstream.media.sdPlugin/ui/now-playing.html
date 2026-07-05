@@ -26,6 +26,10 @@
     <input type="password" id="obsPassword" placeholder="" />
   </label>
   <label>
+    Player (optional) — pin one MPRIS player; blank = default
+    <input type="text" id="player" placeholder="spotify" />
+  </label>
+  <label>
     OBS text source name
     <input type="text" id="textSource" placeholder="Now Playing" />
   </label>
@@ -62,6 +66,7 @@
       const s = actionInfo.payload?.settings ?? {};
       document.getElementById("obsUrl").value = s.obsUrl ?? "";
       document.getElementById("obsPassword").value = s.obsPassword ?? "";
+      document.getElementById("player").value = s.player ?? "";
       document.getElementById("textSource").value = s.textSource ?? "";
       document.getElementById("imageSource").value = s.imageSource ?? "";
       document.getElementById("artDir").value = s.artDir ?? "";
@@ -81,6 +86,7 @@
         payload: {
           obsUrl: document.getElementById("obsUrl").value.trim(),
           obsPassword: document.getElementById("obsPassword").value,
+          player: document.getElementById("player").value.trim() || undefined,
           textSource: document.getElementById("textSource").value.trim(),
           imageSource: document.getElementById("imageSource").value.trim(),
           artDir: document.getElementById("artDir").value.trim() || undefined,
@@ -89,7 +95,7 @@
       }));
       updateUi();
     }
-    for (const id of ["obsUrl", "obsPassword", "textSource", "imageSource", "artDir", "template"]) {
+    for (const id of ["obsUrl", "obsPassword", "player", "textSource", "imageSource", "artDir", "template"]) {
       document.getElementById(id).addEventListener("change", send);
     }
     window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;

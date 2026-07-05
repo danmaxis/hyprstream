@@ -20,6 +20,8 @@ export type MediaControlSettings = JsonObject & {
   showArt?: boolean;
   /** Permit fetching http(s) album-art URLs (Spotify/Tidal/etc). Default true. */
   allowRemoteFetch?: boolean;
+  /** Pin a specific MPRIS player (e.g. "spotify"); blank = default player. */
+  player?: string;
 };
 
 /**
@@ -47,6 +49,7 @@ export class MediaControlAction extends SingletonAction<MediaControlSettings> {
   }
 
   override async onWillAppear(ev: WillAppearEvent<MediaControlSettings>): Promise<void> {
+    this.mpris.setPlayer(ev.payload.settings.player);
     if (this.contexts.size === 0) this.mpris.acquire();
     this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
@@ -60,11 +63,13 @@ export class MediaControlAction extends SingletonAction<MediaControlSettings> {
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<MediaControlSettings>,
   ): Promise<void> {
+    this.mpris.setPlayer(ev.payload.settings.player);
     this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
   }
 
   override async onKeyDown(ev: KeyDownEvent<MediaControlSettings>): Promise<void> {
+    this.mpris.setPlayer(ev.payload.settings.player);
     const op = clampOp(ev.payload.settings.op);
     console.error(`[hyprstream] media.${op} press`);
     try {

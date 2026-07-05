@@ -276,3 +276,80 @@ describe("Mpris refcounted follow subprocess", () => {
     expect(m.currentStatus).toBe("None");
   });
 });
+
+describe("Mpris player targeting (--player)", () => {
+  function makeFakeFollow() {
+    const { EventEmitter } = require("node:events");
+    const stdout = new EventEmitter();
+    stdout.setEncoding = () => {};
+    const proc = new EventEmitter();
+    proc.stdout = stdout;
+    proc.stderr = new EventEmitter();
+    proc.kill = () => proc.emit("exit");
+    return proc as any;
+  }
+
+  it("prepends --player=<name> to one-shot commands", async () => {
+    const calls: string[][] = [];
+    const runner = vi.fn(async (_bin: string, args: string[]) => {
+      calls.push(args);
+      return "Playing";
+    });
+    const m = new Mpris({ runner, player: "spotify" });
+    await m.getStatus();
+    await m.playPause();
+    expect(calls[0]).toEqual(["--player=spotify", "status"]);
+    expect(calls[1]).toEqual(["--player=spotify", "play-pause"]);
+  });
+
+  it("omits --player when no player is pinned", async () => {
+    const calls: string[][] = [];
+    const runner = vi.fn(async (_b: string, a: string[]) => {
+      calls.push(a);
+      return "Playing";
+    });
+    await new Mpris({ runner }).getStatus();
+    expect(calls[0]).toEqual(["status"]);
+  });
+
+  it("passes --player to the follow subprocess", () => {
+    const spawn = vi.fn(() => makeFakeFollow());
+    const m = new Mpris({ spawn, runner: vi.fn(async () => ""), player: "spotify" });
+    m.acquire();
+    expect(spawn.mock.calls[0]![1]![0]).toBe("--player=spotify");
+    m.release();
+  });
+
+  it("setPlayer restarts the follow with the new target", () => {
+    const spawn = vi.fn(() => makeFakeFollow());
+    const m = new Mpris({ spawn, runner: vi.fn(async () => "") });
+    m.acquire();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0]![1]![0]).toBe("--follow"); // no player yet
+    m.setPlayer("spotify");
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[1]![1]![0]).toBe("--player=spotify");
+    m.release();
+  });
+
+  it("setPlayer to the same value does not restart the follow", () => {
+    const spawn = vi.fn(() => makeFakeFollow());
+    const m = new Mpris({ spawn, runner: vi.fn(async () => ""), player: "spotify" });
+    m.acquire();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    m.setPlayer("spotify");
+    m.setPlayer("  spotify  "); // normalized to the same
+    expect(spawn).toHaveBeenCalledTimes(1);
+    m.release();
+  });
+
+  it("setPlayer before acquire only takes effect on the first follow", () => {
+    const spawn = vi.fn(() => makeFakeFollow());
+    const m = new Mpris({ spawn, runner: vi.fn(async () => "") });
+    m.setPlayer("spotify");
+    expect(spawn).not.toHaveBeenCalled();
+    m.acquire();
+    expect(spawn.mock.calls[0]![1]![0]).toBe("--player=spotify");
+    m.release();
+  });
+});

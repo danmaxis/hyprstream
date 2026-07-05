@@ -47,6 +47,9 @@ class FakeMpris {
   release() {
     this.releaseCalls++;
   }
+  setPlayer() {
+    /* no-op for tests */
+  }
 }
 
 const action = (id: string) => ({ id, isKey: () => true, setImage: vi.fn(async () => undefined), showOk: vi.fn(async () => undefined), showAlert: vi.fn(async () => undefined) });

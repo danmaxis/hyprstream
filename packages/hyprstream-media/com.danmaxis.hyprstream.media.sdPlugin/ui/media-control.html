@@ -27,6 +27,12 @@
     </select>
   </label>
 
+  <label>
+    Player (optional) — pin one MPRIS player; blank = default
+    <input type="text" id="player" placeholder="spotify"
+      style="width:100%;padding:6px 8px;box-sizing:border-box;background:#2a2e3a;border:1px solid #414868;border-radius:4px;color:inherit;font-size:13px;margin-top:4px;" />
+  </label>
+
   <label class="toggle" id="showArtRow">
     <input type="checkbox" id="showArt" />
     Show album art on Play/Pause
@@ -52,6 +58,7 @@
       actionInfo = JSON.parse(inActionInfo);
       const settings = actionInfo.payload?.settings ?? {};
       document.getElementById("op").value = settings.op ?? "play-pause";
+      document.getElementById("player").value = settings.player ?? "";
       document.getElementById("showArt").checked = settings.showArt !== false;
       document.getElementById("allowRemoteFetch").checked = settings.allowRemoteFetch === true;
       updateUi();
@@ -71,6 +78,7 @@
         event: "setSettings", context: uuid,
         payload: {
           op: document.getElementById("op").value,
+          player: document.getElementById("player").value.trim() || undefined,
           showArt: document.getElementById("showArt").checked,
           allowRemoteFetch: document.getElementById("allowRemoteFetch").checked,
         },
@@ -78,6 +86,7 @@
       updateUi();
     }
     document.getElementById("op").addEventListener("change", send);
+    document.getElementById("player").addEventListener("change", send);
     document.getElementById("showArt").addEventListener("change", send);
     document.getElementById("allowRemoteFetch").addEventListener("change", send);
     window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
