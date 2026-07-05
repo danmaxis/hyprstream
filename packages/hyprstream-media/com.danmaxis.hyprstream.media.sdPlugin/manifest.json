@@ -33,6 +33,21 @@
           "ShowTitle": false
         }
       ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.media.now-playing",
+      "Name": "Now Playing → OBS",
+      "Tooltip": "Mirror the current MPRIS track into an OBS text source (and optionally an image source for album art) over obs-websocket v5 — the overlay updates itself on every track change, replacing the playerctl→systemd→text-file scripts DJs hand-roll. The key shows the current cover + track and an OBS badge that turns green when connected; press to force a re-push. Template placeholders: {artist}, {title}, {album}. Requires: playerctl and OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/now-playing/icon",
+      "PropertyInspectorPath": "ui/now-playing.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Image": "imgs/actions/now-playing/state",
+          "ShowTitle": false
+        }
+      ]
     }
   ]
 }

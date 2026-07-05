@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Now Playing → OBS settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="text"], input[type="password"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .legend .req { color: #ffaa55; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>
+    obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>
+    obs-websocket password (leave blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+  <label>
+    OBS text source name
+    <input type="text" id="textSource" placeholder="Now Playing" />
+  </label>
+  <label>
+    OBS image source name (optional — album art)
+    <input type="text" id="imageSource" placeholder="Album Art" />
+  </label>
+  <label>
+    Display template
+    <input type="text" id="template" placeholder="{artist} — {title}" />
+  </label>
+
+  <div class="legend">
+    Mirrors the current MPRIS track into an OBS <strong>text</strong> source (and optionally an <strong>image</strong> source for album art) over obs-websocket v5 — the overlay updates itself on every track change. Placeholders: <code>{artist}</code>, <code>{title}</code>, <code>{album}</code>. The key's OBS badge turns green when connected; press the key to force a re-push.
+    <br/><br/>
+    Enable the obs-websocket server in OBS: <em>Tools → WebSocket Server Settings</em>. For album art, add an <em>Image</em> source in OBS and put its name above.
+    <br/><br/>
+    <span class="req">Requires: playerctl (pacman -S playerctl) and OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const s = actionInfo.payload?.settings ?? {};
+      document.getElementById("obsUrl").value = s.obsUrl ?? "";
+      document.getElementById("obsPassword").value = s.obsPassword ?? "";
+      document.getElementById("textSource").value = s.textSource ?? "";
+      document.getElementById("imageSource").value = s.imageSource ?? "";
+      document.getElementById("template").value = s.template ?? "";
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: document.getElementById("obsUrl").value.trim(),
+          obsPassword: document.getElementById("obsPassword").value,
+          textSource: document.getElementById("textSource").value.trim(),
+          imageSource: document.getElementById("imageSource").value.trim(),
+          template: document.getElementById("template").value,
+        },
+      }));
+    }
+    for (const id of ["obsUrl", "obsPassword", "textSource", "imageSource", "template"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

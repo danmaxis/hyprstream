@@ -5,7 +5,7 @@
 
 import { createHash } from "node:crypto";
 
-function svgToDataUri(svg: string): string {
+export function svgToDataUri(svg: string): string {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
