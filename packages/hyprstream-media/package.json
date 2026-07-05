@@ -1,0 +1,20 @@
+{
+  "name": "hyprstream-media",
+  "version": "0.1.0",
+  "description": "OpenDeck plugin: a visual MPRIS now-playing surface for Stream Deck — live album art, track metadata, and player control on Linux.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "^1.0.0",
+    "@hyprstream/deck-core": "*"
+  }
+}

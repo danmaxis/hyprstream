@@ -1,0 +1,29 @@
+{
+  "name": "hyprstream",
+  "version": "0.4.13",
+  "description": "OpenDeck action plugin that turns a Stream Deck into a Hyprland control surface — workspaces, window state, audio, capture, MPRIS media with album art, and six system displays.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "^1.0.0",
+    "@hyprstream/deck-core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

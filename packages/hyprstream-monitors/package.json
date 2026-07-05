@@ -1,0 +1,20 @@
+{
+  "name": "hyprstream-monitors",
+  "version": "0.1.0",
+  "description": "OpenDeck plugin: calm, glanceable system displays for Stream Deck on Linux — clock, CPU, RAM, battery, temperature, uptime.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "^1.0.0",
+    "@hyprstream/deck-core": "*"
+  }
+}

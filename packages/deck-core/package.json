@@ -1,0 +1,19 @@
+{
+  "name": "@hyprstream/deck-core",
+  "version": "0.1.0",
+  "description": "Shared foundation for the hyprstream plugin family: SVG key rendering, command runner, tap-to-confirm, and OpenDeck SDK bootstrap.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@elgato/streamdeck": "^1.0.0"
+  }
+}
