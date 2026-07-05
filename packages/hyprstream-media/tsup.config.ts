@@ -9,6 +9,6 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  noExternal: ["@elgato/streamdeck", "@hyprstream/deck-core"],
+  noExternal: ["@elgato/streamdeck", "@hyprstream/deck-core", "ws"],
   outExtension: () => ({ js: ".cjs" }),
 });

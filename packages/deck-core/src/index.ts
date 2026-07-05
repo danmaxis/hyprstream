@@ -4,3 +4,4 @@ export * from "./render/icon.js";
 export * from "./system/runner.js";
 export * from "./actions/confirm.js";
 export * from "./sdk/bootstrap.js";
+export * from "./obs/obsClient.js";
