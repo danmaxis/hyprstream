@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Privacy Guard settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    textarea { min-height: 72px; font-family: ui-monospace, monospace; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; }
+    .req { color: #ffaa55; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>obs-websocket password (blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+  <label>When a sensitive window is focused…
+    <select id="guardMode">
+      <option value="hide">Hide a source</option>
+      <option value="cutScene">Cut to a privacy scene</option>
+    </select>
+  </label>
+  <label id="rowScene">OBS scene (containing the source to hide)
+    <input type="text" id="sceneName" placeholder="Coding" />
+  </label>
+  <label id="rowSource">Source to hide
+    <input type="text" id="captureSource" placeholder="Screen Capture" />
+  </label>
+  <label id="rowPrivacy" style="display:none;">Privacy / BRB scene to cut to
+    <input type="text" id="privacyScene" placeholder="Privacy" />
+  </label>
+  <label id="rowNormal" style="display:none;">Scene to restore (blank = the one that was live)
+    <input type="text" id="normalScene" placeholder="" />
+  </label>
+  <label>Blocklist (one rule per line)
+    <textarea id="blocklist" placeholder="class:1password&#10;title:/secret|\.env/i&#10;Signal"></textarea>
+  </label>
+
+  <div class="legend">
+    On focus onto any window matching the blocklist, the guard fires instantly and restores when you focus away. Rules: <code>class:foo</code>, <code>title:bar</code>, <code>title:/regex/i</code>, or a bare token (matches class or title). Press the key for a manual <strong>panic cut</strong> regardless of the list.
+    <br/><br/>
+    <span class="req">Requires: Hyprland + OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      const set = (id, v) => document.getElementById(id).value = v ?? "";
+      set("obsUrl", s.obsUrl); set("obsPassword", s.obsPassword);
+      document.getElementById("guardMode").value = s.guardMode ?? "hide";
+      set("sceneName", s.sceneName); set("captureSource", s.captureSource);
+      set("privacyScene", s.privacyScene); set("normalScene", s.normalScene);
+      set("blocklist", s.blocklist);
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function updateUi() {
+      const cut = document.getElementById("guardMode").value === "cutScene";
+      document.getElementById("rowScene").style.display = cut ? "none" : "block";
+      document.getElementById("rowSource").style.display = cut ? "none" : "block";
+      document.getElementById("rowPrivacy").style.display = cut ? "block" : "none";
+      document.getElementById("rowNormal").style.display = cut ? "block" : "none";
+    }
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: strOrUndef("obsUrl"),
+          obsPassword: document.getElementById("obsPassword").value,
+          guardMode: document.getElementById("guardMode").value,
+          sceneName: strOrUndef("sceneName"),
+          captureSource: strOrUndef("captureSource"),
+          privacyScene: strOrUndef("privacyScene"),
+          normalScene: strOrUndef("normalScene"),
+          blocklist: strOrUndef("blocklist"),
+        },
+      }));
+      updateUi();
+    }
+    for (const id of ["obsUrl","obsPassword","guardMode","sceneName","captureSource","privacyScene","normalScene","blocklist"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

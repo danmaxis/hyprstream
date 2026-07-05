@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Zoom Spotlight settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="text"], input[type="password"], input[type="number"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .req { color: #ffaa55; }
+  </style>
+</head>
+<body>
+  <label>obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>obs-websocket password (blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+  <label>OBS scene name
+    <input type="text" id="sceneName" placeholder="Coding" />
+  </label>
+  <label>Monitor-capture source name
+    <input type="text" id="captureSource" placeholder="Screen Capture" />
+  </label>
+  <label>Hyprland monitor name (optional — blank = focused window's monitor)
+    <input type="text" id="monitorName" placeholder="DP-1" />
+  </label>
+  <label>Ease duration (ms)
+    <input type="number" id="easeMs" placeholder="250" />
+  </label>
+
+  <div class="legend">
+    Press once to ease the stage into the currently-focused window; press again to ease back to the full frame. Uses the same monitor-capture source as Auto-Frame.
+    <br/><br/>
+    <span class="req">Requires: Hyprland + OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      const set = (id, v) => document.getElementById(id).value = v ?? "";
+      set("obsUrl", s.obsUrl); set("obsPassword", s.obsPassword);
+      set("sceneName", s.sceneName); set("captureSource", s.captureSource);
+      set("monitorName", s.monitorName); set("easeMs", s.easeMs);
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    const numOrUndef = (id) => { const v = document.getElementById(id).value.trim(); return v === "" ? undefined : Number(v); };
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: strOrUndef("obsUrl"),
+          obsPassword: document.getElementById("obsPassword").value,
+          sceneName: strOrUndef("sceneName"),
+          captureSource: strOrUndef("captureSource"),
+          monitorName: strOrUndef("monitorName"),
+          easeMs: numOrUndef("easeMs"),
+        },
+      }));
+    }
+    for (const id of ["obsUrl","obsPassword","sceneName","captureSource","monitorName","easeMs"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

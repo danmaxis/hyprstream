@@ -1,8 +1,12 @@
 import streamDeck, { LogLevel } from "@elgato/streamdeck";
-import { createFileLogger, installCrashLogging } from "@hyprstream/deck-core";
+import { createFileLogger, installCrashLogging, HyprFocusWatcher } from "@hyprstream/deck-core";
 import { Mpris } from "./system/mpris.js";
 import { MediaControlAction } from "./actions/media.js";
 import { NowPlayingObsAction } from "./actions/now-playing.js";
+import { AutoFrameAction } from "./actions/auto-frame.js";
+import { PrivacyGuardAction } from "./actions/privacy-guard.js";
+import { ZoomSpotlightAction } from "./actions/zoom-spotlight.js";
+import { WorkspaceSceneAction } from "./actions/workspace-scene.js";
 
 streamDeck.logger.setLevel(LogLevel.DEBUG);
 
@@ -14,7 +18,15 @@ log(`[hyprstream-media] starting. node=${process.version} pid=${process.pid} cwd
 streamDeck.actions.registerAction(new MediaControlAction(new Mpris()));
 streamDeck.actions.registerAction(new NowPlayingObsAction(new Mpris()));
 
-log("[hyprstream-media] 2 actions registered, connecting to OpenDeck WS…");
+// The Hyprland focus/geometry watcher is a shared OS resource (one .socket2.sock
+// subscription); all the stage-director actions share one refcounted instance.
+const hypr = new HyprFocusWatcher();
+streamDeck.actions.registerAction(new AutoFrameAction(hypr));
+streamDeck.actions.registerAction(new PrivacyGuardAction(hypr));
+streamDeck.actions.registerAction(new ZoomSpotlightAction(hypr));
+streamDeck.actions.registerAction(new WorkspaceSceneAction(hypr));
+
+log("[hyprstream-media] 6 actions registered, connecting to OpenDeck WS…");
 
 void streamDeck.connect().then(
   () => log("[hyprstream-media] streamDeck.connect() resolved"),

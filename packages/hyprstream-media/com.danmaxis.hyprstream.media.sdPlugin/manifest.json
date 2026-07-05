@@ -48,6 +48,66 @@
           "ShowTitle": false
         }
       ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.media.auto-frame",
+      "Name": "Auto-Frame (Focus)",
+      "Tooltip": "Auto-crop the focused Hyprland window into a fixed region of an OBS scene, live-following as you tab between editor/terminal/browser. Set up ONE PipeWire/Screen-Capture source of your coding monitor in a scene (one-time Wayland portal grant) and name it here; the plugin reads window+monitor geometry from Hyprland and drives OBS via SetSceneItemTransform. Press to toggle Follow ↔ Pin (lock the current window). Requires: Hyprland + OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/auto-frame/icon",
+      "PropertyInspectorPath": "ui/auto-frame.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Image": "imgs/actions/auto-frame/state",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.media.privacy-guard",
+      "Name": "Privacy Guard",
+      "Tooltip": "Protect against leaking secrets on stream: when a window matching your blocklist (password manager, .env/secrets, DMs, mail, banking) gains focus in Hyprland, instantly hide the content source or cut OBS to a privacy scene — restoring when focus leaves. The key is also a manual panic cut. Reacts from the compositor focus signal, faster than a human. Requires: Hyprland + OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/privacy-guard/icon",
+      "PropertyInspectorPath": "ui/privacy-guard.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Image": "imgs/actions/privacy-guard/state",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.media.zoom",
+      "Name": "Zoom Spotlight",
+      "Tooltip": "Momentary spotlight zoom: press to smoothly ease the OBS stage into the currently-focused Hyprland window (to emphasise a function or line), press again to ease back to the full frame. Uses the same monitor-capture source as Auto-Frame. Requires: Hyprland + OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/zoom/icon",
+      "PropertyInspectorPath": "ui/zoom.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Image": "imgs/actions/zoom/state",
+          "ShowTitle": false
+        }
+      ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.media.workspace-scene",
+      "Name": "Workspace → Scene",
+      "Tooltip": "Bind Hyprland workspaces (or focused window classes) to OBS scenes and auto-switch the program scene when you change workspace/app. A loop guard means it only switches when the target actually changes, so it never fights a manual scene change. Press to re-sync now. Requires: Hyprland + OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/workspace-scene/icon",
+      "PropertyInspectorPath": "ui/workspace-scene.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        {
+          "Image": "imgs/actions/workspace-scene/state",
+          "ShowTitle": false
+        }
+      ]
     }
   ]
 }

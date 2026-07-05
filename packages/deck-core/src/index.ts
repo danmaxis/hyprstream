@@ -6,3 +6,5 @@ export * from "./actions/confirm.js";
 export * from "./sdk/bootstrap.js";
 export * from "./sdk/host.js";
 export * from "./obs/obsClient.js";
+export * from "./hyprland/types.js";
+export * from "./hyprland/focusWatcher.js";

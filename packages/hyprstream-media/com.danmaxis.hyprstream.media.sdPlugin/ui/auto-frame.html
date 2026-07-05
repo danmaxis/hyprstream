@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Auto-Frame settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="text"], input[type="password"], input[type="number"], select, textarea {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    textarea { min-height: 60px; font-family: ui-monospace, monospace; }
+    .row2 { display: flex; gap: 8px; }
+    .row2 > label { flex: 1; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .req { color: #ffaa55; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>obs-websocket password (blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+  <label>OBS scene name
+    <input type="text" id="sceneName" placeholder="Coding" />
+  </label>
+  <label>Monitor-capture source name
+    <input type="text" id="captureSource" placeholder="Screen Capture" />
+  </label>
+  <label>Hyprland monitor name (optional — blank = focused window's monitor)
+    <input type="text" id="monitorName" placeholder="DP-1" />
+  </label>
+  <label>Fit
+    <select id="fit">
+      <option value="fit">Fit — letterbox (show the whole window)</option>
+      <option value="fill">Fill — cover (crop to fill the stage)</option>
+    </select>
+  </label>
+  <div class="row2">
+    <label>Stage X<input type="number" id="stageX" placeholder="0" /></label>
+    <label>Stage Y<input type="number" id="stageY" placeholder="0" /></label>
+  </div>
+  <div class="row2">
+    <label>Stage W<input type="number" id="stageW" placeholder="canvas" /></label>
+    <label>Stage H<input type="number" id="stageH" placeholder="canvas" /></label>
+  </div>
+  <label>Padding (px)
+    <input type="number" id="padding" placeholder="0" />
+  </label>
+  <label>Mode
+    <select id="mode">
+      <option value="follow">Follow — retarget on every focus change</option>
+      <option value="pin">Pin — lock the current window</option>
+    </select>
+  </label>
+  <label>Ignore list (one class/title rule per line — never frame these)
+    <textarea id="ignoreList" placeholder="class:obs&#10;streamdeck&#10;class:rofi"></textarea>
+  </label>
+
+  <div class="legend">
+    Add <strong>one</strong> PipeWire / Screen-Capture source of your coding monitor to a scene (one-time Wayland portal grant) and name it above. The key auto-crops that capture to your focused window and scales it into the stage rectangle. Leave Stage W/H blank to use the whole canvas. Press the key to toggle Follow ↔ Pin.
+    <br/><br/>
+    <span class="req">Requires: Hyprland + OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      const set = (id, v) => document.getElementById(id).value = v ?? "";
+      set("obsUrl", s.obsUrl); set("obsPassword", s.obsPassword);
+      set("sceneName", s.sceneName); set("captureSource", s.captureSource);
+      set("monitorName", s.monitorName);
+      document.getElementById("fit").value = s.fit ?? "fit";
+      set("stageX", s.stageX); set("stageY", s.stageY);
+      set("stageW", s.stageW); set("stageH", s.stageH); set("padding", s.padding);
+      document.getElementById("mode").value = s.mode ?? "follow";
+      set("ignoreList", s.ignoreList);
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    const numOrUndef = (id) => { const v = document.getElementById(id).value.trim(); return v === "" ? undefined : Number(v); };
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: strOrUndef("obsUrl"),
+          obsPassword: document.getElementById("obsPassword").value,
+          sceneName: strOrUndef("sceneName"),
+          captureSource: strOrUndef("captureSource"),
+          monitorName: strOrUndef("monitorName"),
+          fit: document.getElementById("fit").value,
+          stageX: numOrUndef("stageX"), stageY: numOrUndef("stageY"),
+          stageW: numOrUndef("stageW"), stageH: numOrUndef("stageH"),
+          padding: numOrUndef("padding"),
+          mode: document.getElementById("mode").value,
+          ignoreList: strOrUndef("ignoreList"),
+        },
+      }));
+    }
+    for (const id of ["obsUrl","obsPassword","sceneName","captureSource","monitorName","fit","stageX","stageY","stageW","stageH","padding","mode","ignoreList"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

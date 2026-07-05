@@ -288,6 +288,62 @@ export class ObsClient extends EventEmitter {
     return this.call("SetInputSettings", { inputName, inputSettings, overlay: true });
   }
 
+  // ---- Scene / scene-item control (used by the media stage-director actions) ----
+
+  /** Resolve a source's scene-item id within a scene. */
+  getSceneItemId(sceneName: string, sourceName: string): Promise<{ sceneItemId: number }> {
+    return this.call<{ sceneItemId: number }>("GetSceneItemId", { sceneName, sourceName });
+  }
+
+  /** Read a scene item's transform — notably `sourceWidth`/`sourceHeight` (capture px). */
+  getSceneItemTransform(
+    sceneName: string,
+    sceneItemId: number,
+  ): Promise<{ sceneItemTransform: ObsSceneItemTransform }> {
+    return this.call<{ sceneItemTransform: ObsSceneItemTransform }>("GetSceneItemTransform", {
+      sceneName,
+      sceneItemId,
+    });
+  }
+
+  /** Apply a transform (position/scale/crop/alignment) to a scene item. */
+  setSceneItemTransform(
+    sceneName: string,
+    sceneItemId: number,
+    sceneItemTransform: Record<string, unknown>,
+  ): Promise<unknown> {
+    return this.call("SetSceneItemTransform", { sceneName, sceneItemId, sceneItemTransform });
+  }
+
+  /** Show/hide a scene item (used by Privacy Guard "hide" mode). */
+  setSceneItemEnabled(
+    sceneName: string,
+    sceneItemId: number,
+    sceneItemEnabled: boolean,
+  ): Promise<unknown> {
+    return this.call("SetSceneItemEnabled", { sceneName, sceneItemId, sceneItemEnabled });
+  }
+
+  /** Switch the program (on-air) scene. */
+  setCurrentProgramScene(sceneName: string): Promise<unknown> {
+    return this.call("SetCurrentProgramScene", { sceneName });
+  }
+
+  /** Current program (on-air) scene name. */
+  getCurrentProgramScene(): Promise<{ currentProgramSceneName: string }> {
+    return this.call<{ currentProgramSceneName: string }>("GetCurrentProgramScene");
+  }
+
+  /** Video/canvas settings — `baseWidth`/`baseHeight` are the canvas dimensions. */
+  getVideoSettings(): Promise<ObsVideoSettings> {
+    return this.call<ObsVideoSettings>("GetVideoSettings");
+  }
+
+  /** Recording output status (duration in ms while active). */
+  getRecordStatus(): Promise<ObsRecordStatus> {
+    return this.call<ObsRecordStatus>("GetRecordStatus");
+  }
+
   /** obs process + output stats: CPU, memory, render/output frame timing. */
   getStats(): Promise<ObsStats> {
     return this.call<ObsStats>("GetStats");
@@ -317,5 +373,41 @@ export interface ObsStreamStatus extends Record<string, unknown> {
   outputBytes: number;
   outputSkippedFrames: number;
   outputTotalFrames: number;
+  /** Milliseconds the stream has been live (0 when not active). */
   outputDuration: number;
+}
+
+export interface ObsRecordStatus extends Record<string, unknown> {
+  outputActive: boolean;
+  outputPaused: boolean;
+  outputTimecode: string;
+  /** Milliseconds recording has run (0 when not active). */
+  outputDuration: number;
+  outputBytes: number;
+}
+
+/** A scene item's transform. Setting a subset is enough; reads carry source dims. */
+export interface ObsSceneItemTransform extends Record<string, unknown> {
+  positionX: number;
+  positionY: number;
+  scaleX: number;
+  scaleY: number;
+  cropLeft: number;
+  cropRight: number;
+  cropTop: number;
+  cropBottom: number;
+  alignment: number;
+  /** Native (uncropped) pixel width of the underlying source. */
+  sourceWidth: number;
+  /** Native (uncropped) pixel height of the underlying source. */
+  sourceHeight: number;
+}
+
+export interface ObsVideoSettings extends Record<string, unknown> {
+  baseWidth: number;
+  baseHeight: number;
+  outputWidth: number;
+  outputHeight: number;
+  fpsNumerator: number;
+  fpsDenominator: number;
 }

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Workspace → Scene settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px;
+      color: inherit; font-size: 13px;
+    }
+    textarea { min-height: 84px; font-family: ui-monospace, monospace; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .req { color: #ffaa55; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>obs-websocket password (blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+  <label>Match by
+    <select id="matchMode">
+      <option value="workspace">Workspace (id or name)</option>
+      <option value="class">Focused window class</option>
+    </select>
+  </label>
+  <label>Mapping (one <code>key:scene</code> per line)
+    <textarea id="mapping" placeholder="1:Coding&#10;2:Just Chatting&#10;9:Gameplay"></textarea>
+  </label>
+
+  <div class="legend">
+    When you switch workspace (or focus an app, in class mode) the OBS program scene follows the mapping. The left side matches the workspace id/name, or the window class. It only switches when the target changes, so it won't fight a manual scene change. Press the key to re-sync now.
+    <br/><br/>
+    <span class="req">Requires: Hyprland + OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      const set = (id, v) => document.getElementById(id).value = v ?? "";
+      set("obsUrl", s.obsUrl); set("obsPassword", s.obsPassword);
+      document.getElementById("matchMode").value = s.matchMode ?? "workspace";
+      set("mapping", s.mapping);
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: strOrUndef("obsUrl"),
+          obsPassword: document.getElementById("obsPassword").value,
+          matchMode: document.getElementById("matchMode").value,
+          mapping: strOrUndef("mapping"),
+        },
+      }));
+    }
+    for (const id of ["obsUrl","obsPassword","matchMode","mapping"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>
