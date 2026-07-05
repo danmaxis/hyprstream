@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Threshold Alert settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input[type="number"], input[type="text"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #e93545; font-size: 12px; color: #a9b1d6; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>
+    Metric
+    <select id="metric">
+      <option value="cpu">CPU usage (%)</option>
+      <option value="ram">RAM usage (%)</option>
+      <option value="temp">Temperature (°C)</option>
+      <option value="battery">Battery (%)</option>
+    </select>
+  </label>
+  <label>
+    Fire when value is
+    <select id="direction">
+      <option value="above">Above the threshold</option>
+      <option value="below">Below the threshold</option>
+    </select>
+  </label>
+  <label>
+    Threshold
+    <input type="number" id="threshold" step="1" />
+  </label>
+  <label id="zoneRow" style="display:none;">
+    Thermal zone (temp only)
+    <input type="text" id="zone" placeholder="thermal_zone0" />
+  </label>
+
+  <div class="legend">
+    Unlike a plain readout, this key <strong>alerts</strong>: it stays calm until the metric breaches your threshold, then blinks a red ALERT so a problem is impossible to miss at a glance. Defaults: CPU/RAM ≥ 90%, temp ≥ 85°C, battery ≤ 15%.
+    <br/><br/>
+    Reads <code>/proc/stat</code>, <code>/proc/meminfo</code>, <code>/sys/class/thermal</code>, <code>/sys/class/power_supply</code>. No Hyprland required.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const s = actionInfo.payload?.settings ?? {};
+      document.getElementById("metric").value = s.metric ?? "cpu";
+      document.getElementById("direction").value = s.direction ?? (s.metric === "battery" ? "below" : "above");
+      document.getElementById("threshold").value = s.threshold ?? "";
+      document.getElementById("zone").value = s.zone ?? "";
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function updateUi() {
+      document.getElementById("zoneRow").style.display =
+        document.getElementById("metric").value === "temp" ? "block" : "none";
+    }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      const t = parseFloat(document.getElementById("threshold").value);
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          metric: document.getElementById("metric").value,
+          direction: document.getElementById("direction").value,
+          threshold: Number.isFinite(t) ? t : undefined,
+          zone: document.getElementById("zone").value.trim() || undefined,
+        },
+      }));
+      updateUi();
+    }
+    for (const id of ["metric", "direction", "threshold", "zone"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

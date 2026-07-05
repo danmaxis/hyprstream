@@ -35,7 +35,7 @@ import {
  * external dispatch. Refcounted timer: starts on first onWillAppear, stops
  * on last onWillDisappear, so an idle page costs zero ticks.
  */
-abstract class DisplayPollAction<T extends JsonObject> extends SingletonAction<T> {
+export abstract class DisplayPollAction<T extends JsonObject> extends SingletonAction<T> {
   protected readonly contexts = new Map<string, T>();
   private timer: NodeJS.Timeout | null = null;
   protected abstract readonly intervalMs: number;
