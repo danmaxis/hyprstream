@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>OBS Stream Health settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input { width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px; }
+    .row { display: flex; gap: 10px; }
+    .row > label { flex: 1; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #9ece6a; font-size: 12px; color: #a9b1d6; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>
+    obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>
+    obs-websocket password (leave blank if auth is off)
+    <input type="password" id="obsPassword" />
+  </label>
+  <label>
+    Metric
+    <select id="metric">
+      <option value="dropped">Dropped frames (%) — network</option>
+      <option value="encode-lag">Encoding lag (%) — encoder overload</option>
+      <option value="cpu">OBS CPU (%)</option>
+      <option value="fps">Active FPS</option>
+    </select>
+  </label>
+  <div class="row">
+    <label>Warn at<input type="number" id="warn" step="0.5" /></label>
+    <label>Crit at<input type="number" id="crit" step="0.5" /></label>
+  </div>
+
+  <div class="legend">
+    Surfaces OBS output health so a degrading stream catches your eye before viewers notice. <strong>Dropped frames</strong> = network congestion; <strong>encoding lag</strong> = the encoder can't keep up (drop bitrate/preset). Leave Warn/Crit blank for sensible defaults. For FPS, lower is worse.
+    <br/><br/>
+    <code>Tools → WebSocket Server Settings</code> in OBS 28+ (obs-websocket v5).
+  </div>
+
+  <script>
+    let websocket = null, uuid = null, actionInfo = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      actionInfo = JSON.parse(inActionInfo);
+      const s = actionInfo.payload?.settings ?? {};
+      document.getElementById("obsUrl").value = s.obsUrl ?? "";
+      document.getElementById("obsPassword").value = s.obsPassword ?? "";
+      document.getElementById("metric").value = s.metric ?? "dropped";
+      document.getElementById("warn").value = s.warn ?? "";
+      document.getElementById("crit").value = s.crit ?? "";
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function num(id) { const v = parseFloat(document.getElementById(id).value); return Number.isFinite(v) ? v : undefined; }
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: document.getElementById("obsUrl").value.trim(),
+          obsPassword: document.getElementById("obsPassword").value,
+          metric: document.getElementById("metric").value,
+          warn: num("warn"), crit: num("crit"),
+        },
+      }));
+    }
+    for (const id of ["obsUrl", "obsPassword", "metric", "warn", "crit"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

@@ -102,6 +102,18 @@
       "States": [
         { "Image": "imgs/actions/alert/state", "ShowTitle": false }
       ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.monitors.obs-health",
+      "Name": "OBS Stream Health",
+      "Tooltip": "Live OBS encoder/output health on a key, color-coded green/amber/red — dropped frames, encoding lag, OBS CPU, or active FPS, read over obs-websocket v5. This is exactly what Linux software-encoder (x264/VAAPI) streamers lack: a glanceable warning before a stream degrades. The key's OBS dot turns green when connected. Enable the server in OBS: Tools → WebSocket Server Settings. Requires OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/obs-health/icon",
+      "PropertyInspectorPath": "ui/obs-health.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        { "Image": "imgs/actions/obs-health/state", "ShowTitle": false }
+      ]
     }
   ]
 }

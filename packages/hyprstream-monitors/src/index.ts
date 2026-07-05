@@ -9,6 +9,7 @@ import {
   UptimeAction,
 } from "./actions/display.js";
 import { ThresholdAlertAction } from "./actions/alert.js";
+import { ObsHealthAction } from "./actions/obs-health.js";
 
 streamDeck.logger.setLevel(LogLevel.DEBUG);
 
@@ -22,8 +23,9 @@ streamDeck.actions.registerAction(new BatteryAction());
 streamDeck.actions.registerAction(new TemperatureAction());
 streamDeck.actions.registerAction(new UptimeAction());
 streamDeck.actions.registerAction(new ThresholdAlertAction());
+streamDeck.actions.registerAction(new ObsHealthAction());
 
-log("[hyprstream-monitors] 7 actions registered, connecting to OpenDeck WS…");
+log("[hyprstream-monitors] 8 actions registered, connecting to OpenDeck WS…");
 
 void streamDeck.connect().then(
   () => log("[hyprstream-monitors] streamDeck.connect() resolved"),
