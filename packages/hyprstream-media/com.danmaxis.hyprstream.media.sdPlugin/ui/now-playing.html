@@ -90,7 +90,7 @@
           textSource: document.getElementById("textSource").value.trim(),
           imageSource: document.getElementById("imageSource").value.trim(),
           artDir: document.getElementById("artDir").value.trim() || undefined,
-          template: document.getElementById("template").value,
+          template: document.getElementById("template").value.trim() || undefined,
         },
       }));
       updateUi();

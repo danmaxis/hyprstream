@@ -131,7 +131,10 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
     if (settings.obsUrl) opts.url = settings.obsUrl;
     if (settings.obsPassword) opts.password = settings.obsPassword;
     this.obs = this.obsFactory(opts);
-    this.obs.on("connected", () => void this.repaintAll());
+    // Push the current track the moment OBS finishes connecting: the first
+    // poll's "change" can fire while the socket is still handshaking (its push
+    // would no-op), and a stable track produces no further "change" to retry.
+    this.obs.on("connected", () => void this.onObsReady());
     this.obs.on("disconnected", () => void this.repaintAll());
     this.obs.on("error", () => {
       /* surfaced via the key's OBS dot; don't spam logs */
@@ -147,6 +150,13 @@ export class NowPlayingObsAction extends SingletonAction<NowPlayingObsSettings> 
   }
 
   private async onTrackChange(): Promise<void> {
+    const settings = this.contexts.values().next().value as NowPlayingObsSettings | undefined;
+    if (settings) await this.push(settings);
+    await this.repaintAll();
+  }
+
+  /** OBS just connected — push the current track (missed if it wasn't ready). */
+  private async onObsReady(): Promise<void> {
     const settings = this.contexts.values().next().value as NowPlayingObsSettings | undefined;
     if (settings) await this.push(settings);
     await this.repaintAll();

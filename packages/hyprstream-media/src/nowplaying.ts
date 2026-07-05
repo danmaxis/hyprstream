@@ -60,7 +60,11 @@ export function planNowPlayingUpdates(
 ): ObsInputUpdate[] {
   const updates: ObsInputUpdate[] = [];
   if (settings.textSource) {
-    const text = formatNowPlaying(settings.template ?? DEFAULT_TEMPLATE, meta);
+    // A blank template must fall back to the default — `??` would keep an empty
+    // string (the property inspector persists "" for an untouched field), which
+    // formats to "" and silently blanks the OBS text source on every push.
+    const template = settings.template?.trim() ? settings.template : DEFAULT_TEMPLATE;
+    const text = formatNowPlaying(template, meta);
     updates.push({ inputName: settings.textSource, inputSettings: { text } });
   }
   if (settings.imageSource && artFile) {

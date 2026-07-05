@@ -70,4 +70,13 @@ describe("planNowPlayingUpdates", () => {
     const u = planNowPlayingUpdates(meta, { textSource: "NP", template: "{title} by {artist}" });
     expect(u[0]!.inputSettings.text).toBe("Song by Band");
   });
+
+  it("falls back to the default template when template is blank (regression: empty string blanked OBS)", () => {
+    // The property inspector persists "" for an untouched template field; `??`
+    // wouldn't catch it, so a blank template must still render the default.
+    for (const template of ["", "   "]) {
+      const u = planNowPlayingUpdates(meta, { textSource: "NP", template });
+      expect(u[0]!.inputSettings.text).toBe("Band — Song");
+    }
+  });
 });
