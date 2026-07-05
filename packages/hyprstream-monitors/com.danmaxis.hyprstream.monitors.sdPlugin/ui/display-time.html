@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Clock &amp; Timers settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input[type="text"], input[type="password"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px;
+    }
+    .check { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; }
+    .check input { width: auto; }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    .req { color: #ffaa55; }
+  </style>
+</head>
+<body>
+  <label>Mode
+    <select id="mode">
+      <option value="clock">Wall clock</option>
+      <option value="uptime">System uptime</option>
+      <option value="stream-time">OBS stream time</option>
+      <option value="obs-session">OBS session</option>
+    </select>
+  </label>
+
+  <div id="clockRows">
+    <label>Clock format
+      <select id="format">
+        <option value="24h">24-hour</option>
+        <option value="12h">12-hour</option>
+      </select>
+    </label>
+    <div class="check"><input type="checkbox" id="showSeconds" /><label for="showSeconds" style="margin:0">Show seconds</label></div>
+    <div class="check"><input type="checkbox" id="showDate" /><label for="showDate" style="margin:0">Show date</label></div>
+  </div>
+
+  <label id="uptimeRow" style="display:none;">Uptime format
+    <select id="uptimeFormat">
+      <option value="short">Short (3d4h)</option>
+      <option value="human">Human (3d 4h)</option>
+    </select>
+  </label>
+
+  <div id="obsRows" style="display:none;">
+    <label>obs-websocket URL
+      <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+    </label>
+    <label>obs-websocket password (blank if auth is off)
+      <input type="password" id="obsPassword" placeholder="" />
+    </label>
+  </div>
+
+  <div class="legend">
+    One key, one time value. <strong>OBS session</strong> measures time since this plugin connected to OBS (obs-websocket exposes no process-start time). The OBS modes connect only when selected.
+    <br/><br/>
+    <span class="req">OBS timers require: OBS 28+ with obs-websocket v5</span>
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      document.getElementById("mode").value = s.mode ?? "clock";
+      document.getElementById("format").value = s.format ?? "24h";
+      document.getElementById("showSeconds").checked = !!s.showSeconds;
+      document.getElementById("showDate").checked = !!s.showDate;
+      document.getElementById("uptimeFormat").value = s.uptimeFormat ?? "short";
+      document.getElementById("obsUrl").value = s.obsUrl ?? "";
+      document.getElementById("obsPassword").value = s.obsPassword ?? "";
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function updateUi() {
+      const m = document.getElementById("mode").value;
+      document.getElementById("clockRows").style.display = m === "clock" ? "block" : "none";
+      document.getElementById("uptimeRow").style.display = m === "uptime" ? "block" : "none";
+      document.getElementById("obsRows").style.display = (m === "stream-time" || m === "obs-session") ? "block" : "none";
+    }
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          mode: document.getElementById("mode").value,
+          format: document.getElementById("format").value,
+          showSeconds: document.getElementById("showSeconds").checked,
+          showDate: document.getElementById("showDate").checked,
+          uptimeFormat: document.getElementById("uptimeFormat").value,
+          obsUrl: strOrUndef("obsUrl"),
+          obsPassword: document.getElementById("obsPassword").value,
+        },
+      }));
+      updateUi();
+    }
+    for (const id of ["mode","format","showSeconds","showDate","uptimeFormat","obsUrl","obsPassword"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

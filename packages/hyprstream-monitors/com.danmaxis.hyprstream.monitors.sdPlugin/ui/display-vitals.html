@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>System Vitals settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.45; }
+    label { display: block; margin-bottom: 12px; font-size: 13px; }
+    select, input[type="number"], input[type="text"] {
+      width: 100%; padding: 6px 8px; box-sizing: border-box; margin-top: 4px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px;
+    }
+    .legend { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>Variable
+    <select id="variable">
+      <option value="cpu">CPU usage (%)</option>
+      <option value="ram">RAM usage (%)</option>
+      <option value="battery">Battery (%)</option>
+      <option value="temperature">Temperature (°C)</option>
+    </select>
+  </label>
+  <label id="warnPctRow">Warn threshold (%)
+    <input type="number" id="warnPct" step="1" placeholder="cpu 70 · ram 75 · battery 20" />
+  </label>
+  <label id="critPctRow">Crit threshold (%)
+    <input type="number" id="critPct" step="1" placeholder="cpu 90 · ram 90" />
+  </label>
+  <label id="batteryRow" style="display:none;">Battery name (blank = auto-detect)
+    <input type="text" id="batteryName" placeholder="BAT0" />
+  </label>
+  <label id="zoneRow" style="display:none;">Thermal zone
+    <input type="text" id="zone" placeholder="thermal_zone0" />
+  </label>
+  <label id="warnCRow" style="display:none;">Warn (°C)
+    <input type="number" id="warnC" step="1" placeholder="75" />
+  </label>
+  <label id="critCRow" style="display:none;">Crit (°C)
+    <input type="number" id="critC" step="1" placeholder="90" />
+  </label>
+
+  <div class="legend">
+    One key shows one value. Add several keys and set each to a different variable — same result as separate keys, one palette entry. Reads <code>/proc/stat</code>, <code>/proc/meminfo</code>, <code>/sys/class/power_supply</code>, <code>/sys/class/thermal</code>. No Hyprland required.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      document.getElementById("variable").value = s.variable ?? "cpu";
+      document.getElementById("warnPct").value = s.warnPct ?? "";
+      document.getElementById("critPct").value = s.critPct ?? "";
+      document.getElementById("batteryName").value = s.batteryName ?? "";
+      document.getElementById("zone").value = s.zone ?? "";
+      document.getElementById("warnC").value = s.warnC ?? "";
+      document.getElementById("critC").value = s.critC ?? "";
+      updateUi();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+    function updateUi() {
+      const v = document.getElementById("variable").value;
+      const show = (id, on) => document.getElementById(id).style.display = on ? "block" : "none";
+      show("warnPctRow", v === "cpu" || v === "ram" || v === "battery");
+      show("critPctRow", v === "cpu" || v === "ram");
+      show("batteryRow", v === "battery");
+      show("zoneRow", v === "temperature");
+      show("warnCRow", v === "temperature");
+      show("critCRow", v === "temperature");
+    }
+    const numOrUndef = (id) => { const t = document.getElementById(id).value.trim(); return t === "" ? undefined : Number(t); };
+    const strOrUndef = (id) => document.getElementById(id).value.trim() || undefined;
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          variable: document.getElementById("variable").value,
+          warnPct: numOrUndef("warnPct"), critPct: numOrUndef("critPct"),
+          batteryName: strOrUndef("batteryName"),
+          zone: strOrUndef("zone"), warnC: numOrUndef("warnC"), critC: numOrUndef("critC"),
+        },
+      }));
+      updateUi();
+    }
+    for (const id of ["variable","warnPct","critPct","batteryName","zone","warnC","critC"]) {
+      document.getElementById(id).addEventListener("change", send);
+    }
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

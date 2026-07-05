@@ -1,13 +1,7 @@
 import streamDeck, { LogLevel } from "@elgato/streamdeck";
 import { createFileLogger, installCrashLogging } from "@hyprstream/deck-core";
-import {
-  ClockAction,
-  CpuAction,
-  RamAction,
-  BatteryAction,
-  TemperatureAction,
-  UptimeAction,
-} from "./actions/display.js";
+import { SystemVitalsAction } from "./actions/vitals.js";
+import { TimeAction } from "./actions/time.js";
 import { ThresholdAlertAction } from "./actions/alert.js";
 import { ObsHealthAction } from "./actions/obs-health.js";
 
@@ -16,16 +10,14 @@ streamDeck.logger.setLevel(LogLevel.DEBUG);
 const log = createFileLogger("hyprstream-monitors.log");
 log(`[hyprstream-monitors] starting. node=${process.version} pid=${process.pid} cwd=${process.cwd()}`);
 
-streamDeck.actions.registerAction(new ClockAction());
-streamDeck.actions.registerAction(new CpuAction());
-streamDeck.actions.registerAction(new RamAction());
-streamDeck.actions.registerAction(new BatteryAction());
-streamDeck.actions.registerAction(new TemperatureAction());
-streamDeck.actions.registerAction(new UptimeAction());
+// Two parametric display keys (a PI dropdown picks the value each key shows)
+// plus the alerting + OBS-health keys — a slim four-entry palette.
+streamDeck.actions.registerAction(new SystemVitalsAction());
+streamDeck.actions.registerAction(new TimeAction());
 streamDeck.actions.registerAction(new ThresholdAlertAction());
 streamDeck.actions.registerAction(new ObsHealthAction());
 
-log("[hyprstream-monitors] 8 actions registered, connecting to OpenDeck WS…");
+log("[hyprstream-monitors] 4 actions registered, connecting to OpenDeck WS…");
 
 void streamDeck.connect().then(
   () => log("[hyprstream-monitors] streamDeck.connect() resolved"),

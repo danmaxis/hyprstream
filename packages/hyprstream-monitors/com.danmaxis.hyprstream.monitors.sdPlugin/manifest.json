@@ -4,7 +4,7 @@
   "Name": "Hyprstream Monitors",
   "Author": "danmaxis",
   "Version": "0.1.0.0",
-  "Description": "Calm, glanceable system displays for Stream Deck on Linux: clock, CPU, RAM, battery, temperature, and uptime, read straight from /proc and /sys. Color-coded thresholds keep the keys readable at a glance. No Hyprland required.",
+  "Description": "Calm, glanceable system displays for Stream Deck on Linux. A parametric System Vitals key (CPU, RAM, battery or temperature — pick one per key) and a Clock & Timers key (wall clock, system uptime, OBS stream time or OBS session), plus a threshold-alerting key and a live OBS encoder-health key. Read straight from /proc, /sys and obs-websocket.",
   "Icon": "imgs/plugin/icon",
   "URL": "https://github.com/danmaxis/hyprstream",
   "CodePath": "bin/plugin.cjs",
@@ -20,75 +20,27 @@
   "Nodejs": { "Version": "20", "Debug": "enabled" },
   "Actions": [
     {
-      "UUID": "com.danmaxis.hyprstream.display.clock",
-      "Name": "Clock",
-      "Tooltip": "Live time display. 24h or 12h format with optional seconds and date. Refreshes every second when seconds are shown, otherwise every 30 seconds. Display-only — pressing the key just acknowledges the press, no system action. Works on any Linux setup (no Hyprland required).",
-      "Icon": "imgs/actions/display/clock/icon",
-      "PropertyInspectorPath": "ui/display-clock.html",
+      "UUID": "com.danmaxis.hyprstream.display.vitals",
+      "Name": "System Vitals",
+      "Tooltip": "One key, one system value — pick CPU usage, RAM usage, battery, or temperature from the dropdown. Add several keys, each set to a different variable. Read from /proc and /sys with color-coded warn/crit thresholds (and a charging-bolt for battery). Display-only. Works on any Linux setup (no Hyprland required).",
+      "Icon": "imgs/actions/display/vitals/icon",
+      "PropertyInspectorPath": "ui/display-vitals.html",
       "Controllers": ["Keypad"],
       "DisableAutomaticStates": true,
       "States": [
-        { "Image": "imgs/actions/display/clock/state", "ShowTitle": false }
+        { "Image": "imgs/actions/display/vitals/state", "ShowTitle": false }
       ]
     },
     {
-      "UUID": "com.danmaxis.hyprstream.display.cpu",
-      "Name": "CPU Usage",
-      "Tooltip": "System-wide CPU utilization, read from /proc/stat at ~1.5s intervals. Color goes orange past the warn threshold (default 70%) and red past the crit threshold (default 90%). A progress bar at the bottom mirrors the percentage. Display-only. Works on any Linux setup (no Hyprland required).",
-      "Icon": "imgs/actions/display/cpu/icon",
-      "PropertyInspectorPath": "ui/display-cpu.html",
+      "UUID": "com.danmaxis.hyprstream.display.time",
+      "Name": "Clock & Timers",
+      "Tooltip": "One key, one time value — pick wall clock, system uptime, OBS stream time, or OBS session from the dropdown. Clock supports 24h/12h with optional seconds and date; uptime reads /proc/uptime; stream time reads the live OBS output duration over obs-websocket. (OBS session = time since this plugin connected to OBS, not the OBS process start.) The OBS modes open a connection only when selected. Requires OBS 28+ with obs-websocket v5 for the OBS timers.",
+      "Icon": "imgs/actions/display/time/icon",
+      "PropertyInspectorPath": "ui/display-time.html",
       "Controllers": ["Keypad"],
       "DisableAutomaticStates": true,
       "States": [
-        { "Image": "imgs/actions/display/cpu/state", "ShowTitle": false }
-      ]
-    },
-    {
-      "UUID": "com.danmaxis.hyprstream.display.ram",
-      "Name": "RAM Usage",
-      "Tooltip": "Memory pressure, read from /proc/meminfo (MemTotal/MemAvailable). Refreshes every 2s. Label shows total RAM in GB when detected. Color thresholds at warn (default 75%) and crit (default 90%). Display-only. Works on any Linux setup.",
-      "Icon": "imgs/actions/display/ram/icon",
-      "PropertyInspectorPath": "ui/display-ram.html",
-      "Controllers": ["Keypad"],
-      "DisableAutomaticStates": true,
-      "States": [
-        { "Image": "imgs/actions/display/ram/state", "ShowTitle": false }
-      ]
-    },
-    {
-      "UUID": "com.danmaxis.hyprstream.display.battery",
-      "Name": "Battery",
-      "Tooltip": "Laptop battery charge, read from /sys/class/power_supply/BAT*. Auto-detects the first BAT entry; override the name in the property inspector if needed. Shows a charging-bolt glyph when on AC, turns red at/under the warn threshold (default 20%). Refreshes every 30s. Display-only.",
-      "Icon": "imgs/actions/display/battery/icon",
-      "PropertyInspectorPath": "ui/display-battery.html",
-      "Controllers": ["Keypad"],
-      "DisableAutomaticStates": true,
-      "States": [
-        { "Image": "imgs/actions/display/battery/state", "ShowTitle": false }
-      ]
-    },
-    {
-      "UUID": "com.danmaxis.hyprstream.display.temperature",
-      "Name": "Temperature",
-      "Tooltip": "CPU/SoC temperature in °C, read from /sys/class/thermal/<zone>/temp. Default zone is thermal_zone0; switch zones in the PI if your laptop reports the right sensor elsewhere. Color thresholds at warn (75°) and crit (90°). Refreshes every 2s. Display-only.",
-      "Icon": "imgs/actions/display/temperature/icon",
-      "PropertyInspectorPath": "ui/display-temperature.html",
-      "Controllers": ["Keypad"],
-      "DisableAutomaticStates": true,
-      "States": [
-        { "Image": "imgs/actions/display/temperature/state", "ShowTitle": false }
-      ]
-    },
-    {
-      "UUID": "com.danmaxis.hyprstream.display.uptime",
-      "Name": "Uptime",
-      "Tooltip": "System uptime, read from /proc/uptime. Two formats: 'short' (3d4h, 12h34m, 7m) and 'human' (3d 4h). Refreshes every minute. Display-only. Works on any Linux setup.",
-      "Icon": "imgs/actions/display/uptime/icon",
-      "PropertyInspectorPath": "ui/display-uptime.html",
-      "Controllers": ["Keypad"],
-      "DisableAutomaticStates": true,
-      "States": [
-        { "Image": "imgs/actions/display/uptime/state", "ShowTitle": false }
+        { "Image": "imgs/actions/display/time/state", "ShowTitle": false }
       ]
     },
     {
