@@ -66,6 +66,18 @@
       "States": [
         { "Image": "imgs/actions/obs-health/state", "ShowTitle": false }
       ]
+    },
+    {
+      "UUID": "com.danmaxis.hyprstream.monitors.overlay",
+      "Name": "Threshold Overlay",
+      "Tooltip": "React to system or OBS metrics by driving on-stream overlays: when a metric (CPU, RAM, temperature, battery, or OBS dropped-frames/encode-lag/OBS-CPU/FPS) crosses a threshold — above or below — set an OBS text source, show/hide a source, and/or swap an image file. One key holds a list of rules; each fires on the transition and restores when the value clears (with a hysteresis dead-band to stop flapping). Overlays are restored when the key is removed. Requires OBS 28+ with obs-websocket v5.",
+      "Icon": "imgs/actions/overlay/icon",
+      "PropertyInspectorPath": "ui/overlay.html",
+      "Controllers": ["Keypad"],
+      "DisableAutomaticStates": true,
+      "States": [
+        { "Image": "imgs/actions/overlay/state", "ShowTitle": false }
+      ]
     }
   ]
 }

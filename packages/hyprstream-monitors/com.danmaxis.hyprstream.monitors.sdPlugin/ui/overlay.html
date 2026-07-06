@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Threshold Overlay settings</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #1f1f28; color: #c0caf5; margin: 0; padding: 16px; line-height: 1.4; font-size: 13px; }
+    label { display: block; margin-bottom: 8px; }
+    input, select { width: 100%; padding: 5px 7px; box-sizing: border-box; margin-top: 3px;
+      background: #2a2e3a; border: 1px solid #414868; border-radius: 4px; color: inherit; font-size: 13px; }
+    fieldset { border: 1px solid #414868; border-radius: 6px; margin: 0 0 14px; padding: 10px 12px; }
+    legend { padding: 0 6px; color: #7aa2f7; font-weight: 700; }
+    .grid2 { display: flex; gap: 8px; }
+    .grid2 > label { flex: 1; }
+    .sub { color: #9aa5ce; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 4px; }
+    button { background: #2a2e3a; border: 1px solid #414868; color: inherit; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+    button.add { background: #24405f; border-color: #3d5a80; width: 100%; margin-bottom: 12px; }
+    button.rm { float: right; padding: 2px 8px; color: #f7768e; }
+    .legend-box { background: #1a1b26; padding: 10px 12px; border-radius: 6px; border-left: 3px solid #7aa2f7; font-size: 12px; color: #a9b1d6; }
+    code { color: #7dcfff; }
+  </style>
+</head>
+<body>
+  <label>obs-websocket URL
+    <input type="text" id="obsUrl" placeholder="ws://127.0.0.1:4455" />
+  </label>
+  <label>obs-websocket password (blank if auth is off)
+    <input type="password" id="obsPassword" placeholder="" />
+  </label>
+
+  <button class="add" id="addRule">+ Add rule</button>
+  <div id="rules"></div>
+
+  <div class="legend-box">
+    Each rule watches a metric and, on crossing its threshold, drives OBS: fill a <strong>text</strong> source, <strong>show/hide</strong> a source, and/or <strong>swap an image</strong> file — any combination; leave a reaction's fields blank to skip it. Text templates support <code>{value}</code>, <code>{label}</code>, <code>{unit}</code>. Set a <strong>clear</strong> value looser than the threshold for a dead-band that stops flapping (e.g. CPU fire ≥90, clear &lt;80). Overlays are restored when the key is removed.
+    <br/><br/>
+    Requires OBS 28+ with obs-websocket v5.
+  </div>
+
+  <script>
+    let websocket = null, uuid = null;
+    let rules = [];
+
+    const METRICS = [
+      ["System", [["cpu","CPU %"],["ram","RAM %"],["temp","Temperature °C"],["battery","Battery %"]]],
+      ["OBS", [["obs-dropped","Dropped frames %"],["obs-lag","Encode lag %"],["obs-cpu","OBS CPU %"],["obs-fps","Active FPS"]]],
+    ];
+
+    function metricOptions(sel) {
+      return METRICS.map(([grp, items]) =>
+        `<optgroup label="${grp}">` +
+        items.map(([v,l]) => `<option value="${v}"${v===sel?" selected":""}>${l}</option>`).join("") +
+        `</optgroup>`).join("");
+    }
+
+    function ruleHtml(r, i) {
+      const v = (x) => (x === undefined || x === null) ? "" : String(x);
+      return `<fieldset data-rule="${i}">
+        <legend>Rule ${i+1}<button class="rm" data-rm="${i}">✕ remove</button></legend>
+        <label>Metric<select data-f="metric">${metricOptions(r.metric || "cpu")}</select></label>
+        <div class="grid2">
+          <label>Fire when<select data-f="direction">
+            <option value="above"${r.direction!=="below"?" selected":""}>Above</option>
+            <option value="below"${r.direction==="below"?" selected":""}>Below</option>
+          </select></label>
+          <label>Threshold<input type="number" data-f="threshold" value="${v(r.threshold)}" /></label>
+          <label>Clear<input type="number" data-f="clearThreshold" value="${v(r.clearThreshold)}" placeholder="opt" /></label>
+        </div>
+        <div class="sub">Text source (optional)</div>
+        <label>Source name<input type="text" data-f="textSource" value="${v(r.textSource)}" placeholder="Texto1" /></label>
+        <div class="grid2">
+          <label>On text<input type="text" data-f="onText" value="${v(r.onText)}" placeholder="⚠ {label} {value}{unit}" /></label>
+          <label>Off text<input type="text" data-f="offText" value="${v(r.offText)}" placeholder="(clears)" /></label>
+        </div>
+        <div class="sub">Show / hide source (optional)</div>
+        <div class="grid2">
+          <label>Scene<input type="text" data-f="sceneName" value="${v(r.sceneName)}" placeholder="Scene" /></label>
+          <label>Source<input type="text" data-f="source" value="${v(r.source)}" placeholder="AlertBox" /></label>
+        </div>
+        <div class="sub">Image swap (optional)</div>
+        <label>Image source<input type="text" data-f="imageSource" value="${v(r.imageSource)}" placeholder="Status" /></label>
+        <div class="grid2">
+          <label>On file<input type="text" data-f="onFile" value="${v(r.onFile)}" placeholder="/path/red.png" /></label>
+          <label>Off file<input type="text" data-f="offFile" value="${v(r.offFile)}" placeholder="/path/green.png" /></label>
+        </div>
+      </fieldset>`;
+    }
+
+    function render() {
+      document.getElementById("rules").innerHTML = rules.map(ruleHtml).join("");
+      document.querySelectorAll("#rules [data-rm]").forEach((b) =>
+        b.addEventListener("click", (e) => { e.preventDefault(); rules.splice(+b.dataset.rm, 1); render(); commit(); }));
+      document.querySelectorAll("#rules [data-f]").forEach((el) =>
+        el.addEventListener("change", commit));
+    }
+
+    const strOrUndef = (s) => { const t = (s || "").trim(); return t || undefined; };
+    const numOrUndef = (s) => { const t = (s || "").trim(); return t === "" ? undefined : Number(t); };
+
+    function readDom() {
+      return [...document.querySelectorAll("#rules [data-rule]")].map((fs) => {
+        const g = (f) => fs.querySelector(`[data-f="${f}"]`).value;
+        return {
+          metric: g("metric"),
+          direction: g("direction"),
+          threshold: numOrUndef(g("threshold")),
+          clearThreshold: numOrUndef(g("clearThreshold")),
+          textSource: strOrUndef(g("textSource")),
+          onText: strOrUndef(g("onText")),
+          offText: strOrUndef(g("offText")),
+          sceneName: strOrUndef(g("sceneName")),
+          source: strOrUndef(g("source")),
+          imageSource: strOrUndef(g("imageSource")),
+          onFile: strOrUndef(g("onFile")),
+          offFile: strOrUndef(g("offFile")),
+        };
+      });
+    }
+
+    function commit() {
+      rules = readDom();
+      send();
+    }
+
+    function send() {
+      if (!websocket || websocket.readyState !== 1) return;
+      websocket.send(JSON.stringify({
+        event: "setSettings", context: uuid,
+        payload: {
+          obsUrl: strOrUndef(document.getElementById("obsUrl").value),
+          obsPassword: document.getElementById("obsPassword").value,
+          rules,
+        },
+      }));
+    }
+
+    function connectElgatoStreamDeckSocket(inPort, inUUID, inRegisterEvent, inInfo, inActionInfo) {
+      uuid = inUUID;
+      const s = JSON.parse(inActionInfo).payload?.settings ?? {};
+      document.getElementById("obsUrl").value = s.obsUrl ?? "";
+      document.getElementById("obsPassword").value = s.obsPassword ?? "";
+      rules = Array.isArray(s.rules) ? s.rules : [];
+      render();
+      websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+      websocket.onopen = () => websocket.send(JSON.stringify({ event: inRegisterEvent, uuid: inUUID }));
+    }
+
+    document.getElementById("addRule").addEventListener("click", (e) => {
+      e.preventDefault();
+      rules.push({ metric: "cpu", direction: "above" });
+      render();
+      commit();
+    });
+    document.getElementById("obsUrl").addEventListener("change", send);
+    document.getElementById("obsPassword").addEventListener("change", send);
+    window.connectElgatoStreamDeckSocket = connectElgatoStreamDeckSocket;
+  </script>
+</body>
+</html>

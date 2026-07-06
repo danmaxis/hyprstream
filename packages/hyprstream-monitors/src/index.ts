@@ -4,6 +4,7 @@ import { SystemVitalsAction } from "./actions/vitals.js";
 import { TimeAction } from "./actions/time.js";
 import { ThresholdAlertAction } from "./actions/alert.js";
 import { ObsHealthAction } from "./actions/obs-health.js";
+import { OverlayAction } from "./actions/overlay.js";
 
 streamDeck.logger.setLevel(LogLevel.DEBUG);
 
@@ -16,8 +17,9 @@ streamDeck.actions.registerAction(new SystemVitalsAction());
 streamDeck.actions.registerAction(new TimeAction());
 streamDeck.actions.registerAction(new ThresholdAlertAction());
 streamDeck.actions.registerAction(new ObsHealthAction());
+streamDeck.actions.registerAction(new OverlayAction());
 
-log("[hyprstream-monitors] 4 actions registered, connecting to OpenDeck WS…");
+log("[hyprstream-monitors] 5 actions registered, connecting to OpenDeck WS…");
 
 void streamDeck.connect().then(
   () => log("[hyprstream-monitors] streamDeck.connect() resolved"),
