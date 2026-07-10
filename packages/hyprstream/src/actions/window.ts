@@ -26,6 +26,9 @@ import {
 } from "@hyprstream/deck-core";
 import { computeConfirmFrame, isWithinConfirmWindow } from "@hyprstream/deck-core";
 
+/** Trailing delay for the heal repaint (see {@link StaticIconAction.scheduleHeal}). */
+const HEAL_DELAY_MS = 300;
+
 /**
  * Base for actions whose icon doesn't depend on live system state — set once
  * on appear and on settings change. The repaint method receives the action
@@ -33,8 +36,10 @@ import { computeConfirmFrame, isWithinConfirmWindow } from "@hyprstream/deck-cor
  * doesn't yet include a just-appearing context.
  */
 abstract class StaticIconAction<T extends JsonObject> extends SingletonAction<T> {
-  protected readonly contexts = new Set<string>();
+  /** Per-context settings, so any sibling can be repainted on demand. */
+  protected readonly contexts = new Map<string, T>();
   protected readonly hyprctl: Hyprctl;
+  private healTimer: NodeJS.Timeout | null = null;
 
   constructor(hyprctl: Hyprctl) {
     super();
@@ -42,16 +47,48 @@ abstract class StaticIconAction<T extends JsonObject> extends SingletonAction<T>
   }
 
   override async onWillAppear(ev: WillAppearEvent<T>): Promise<void> {
-    this.contexts.add(ev.action.id);
+    this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
+    this.scheduleHeal();
   }
 
   override onWillDisappear(ev: WillDisappearEvent<T>): void {
     this.contexts.delete(ev.action.id);
+    this.scheduleHeal();
   }
 
   override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<T>): Promise<void> {
+    this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
+  }
+
+  /**
+   * Re-assert every sibling's icon shortly after the profile changes. When a key
+   * is added, pasted, or removed, OpenDeck resets the *other* keys' icons to the
+   * manifest default on its canvas — with no event to the plugin — and it does
+   * so *after* delivering willAppear, so an immediate repaint loses the race and
+   * the sibling stays blank until its next press. A single trailing repaint,
+   * coalesced across a burst of appears (e.g. a profile load), lands after
+   * OpenDeck settles and restores every icon.
+   */
+  private scheduleHeal(): void {
+    if (this.healTimer) clearTimeout(this.healTimer);
+    this.healTimer = setTimeout(() => {
+      this.healTimer = null;
+      void this.repaintAll();
+    }, HEAL_DELAY_MS);
+  }
+
+  /** Re-assert the icon for every visible context of this action. */
+  protected async repaintAll(): Promise<void> {
+    const tasks: Array<Promise<void>> = [];
+    for (const a of this.actions) {
+      if (!a.isKey()) continue;
+      const settings = this.contexts.get(a.id);
+      if (settings === undefined) continue;
+      tasks.push(this.repaint(a, settings));
+    }
+    await Promise.all(tasks);
   }
 
   protected abstract repaint(action: KeyAction<T>, settings: T): Promise<void>;

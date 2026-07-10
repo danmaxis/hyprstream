@@ -22,6 +22,23 @@ import {
   type WorkspaceSelector,
 } from "../hyprland/workspace-selector.js";
 
+/** Trailing delay for the heal repaint that works around OpenDeck's
+ *  blank-sibling-on-profile-mutation race (see window.ts). */
+const HEAL_DELAY_MS = 300;
+
+/** Coalesced trailing repaint: collapses a burst of appears into one pass and
+ *  lands after OpenDeck resets sibling icons, so nothing is left blank. */
+function makeHealer(repaintAll: () => Promise<void>): () => void {
+  let timer: NodeJS.Timeout | null = null;
+  return () => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      void repaintAll();
+    }, HEAL_DELAY_MS);
+  };
+}
+
 /**
  * Settings for Workspace Focus. The legacy `index` field is preserved for
  * backwards compatibility — `parseSettings` migrates `{ index: N }` into
@@ -41,6 +58,8 @@ export type WorkspaceFocusSettings = JsonObject & {
 export class WorkspaceFocusAction extends SingletonAction<WorkspaceFocusSettings> {
   private readonly contexts = new Map<string, WorkspaceFocusSettings>();
   private readonly state: HyprState;
+  /** Re-assert sibling icons after OpenDeck blanks them on a profile mutation. */
+  private readonly heal = makeHealer(() => this.repaintAll());
 
   constructor(state: HyprState) {
     super();
@@ -50,14 +69,13 @@ export class WorkspaceFocusAction extends SingletonAction<WorkspaceFocusSettings
 
   override async onWillAppear(ev: WillAppearEvent<WorkspaceFocusSettings>): Promise<void> {
     this.contexts.set(ev.action.id, ev.payload.settings);
-    console.error(
-      `[hyprstream] onWillAppear id=${ev.action.id} settings=${JSON.stringify(ev.payload.settings)}`,
-    );
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
+    this.heal();
   }
 
   override onWillDisappear(ev: WillDisappearEvent<WorkspaceFocusSettings>): void {
     this.contexts.delete(ev.action.id);
+    this.heal();
   }
 
   override async onDidReceiveSettings(
@@ -140,8 +158,10 @@ export type MoveWindowSettings = JsonObject & {
 
 @action({ UUID: "com.danmaxis.hyprstream.workspace.move-window" })
 export class WorkspaceMoveWindowAction extends SingletonAction<MoveWindowSettings> {
-  private readonly contexts = new Set<string>();
+  private readonly contexts = new Map<string, MoveWindowSettings>();
   private readonly state: HyprState;
+  /** Re-assert sibling icons after OpenDeck blanks them on a profile mutation. */
+  private readonly heal = makeHealer(() => this.repaintAll());
 
   constructor(state: HyprState) {
     super();
@@ -149,18 +169,32 @@ export class WorkspaceMoveWindowAction extends SingletonAction<MoveWindowSetting
   }
 
   override async onWillAppear(ev: WillAppearEvent<MoveWindowSettings>): Promise<void> {
-    this.contexts.add(ev.action.id);
+    this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
+    this.heal();
   }
 
   override onWillDisappear(ev: WillDisappearEvent<MoveWindowSettings>): void {
     this.contexts.delete(ev.action.id);
+    this.heal();
   }
 
   override async onDidReceiveSettings(
     ev: DidReceiveSettingsEvent<MoveWindowSettings>,
   ): Promise<void> {
+    this.contexts.set(ev.action.id, ev.payload.settings);
     if (ev.action.isKey()) await this.repaint(ev.action, ev.payload.settings);
+  }
+
+  private async repaintAll(): Promise<void> {
+    const tasks: Array<Promise<void>> = [];
+    for (const a of this.actions) {
+      if (!a.isKey()) continue;
+      const settings = this.contexts.get(a.id);
+      if (settings === undefined) continue;
+      tasks.push(this.repaint(a, settings));
+    }
+    await Promise.all(tasks);
   }
 
   override async onKeyDown(ev: KeyDownEvent<MoveWindowSettings>): Promise<void> {
